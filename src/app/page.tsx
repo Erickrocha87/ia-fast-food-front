@@ -1,7 +1,8 @@
 import Head from "next/head";
 import LoginCard from "../components/LoginCard";
 
-export default function HomePage() {
+
+export default function loginPage() {
   return (
     <>
       <Head>

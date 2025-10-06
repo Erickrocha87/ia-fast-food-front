@@ -1,22 +1,25 @@
 "use client";
 import React, { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 const LoginCard = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const router = useRouter();
 
   const handleLogin = (event: React.FormEvent) => {
     event.preventDefault();
     console.log("Email:", email);
     console.log("Senha:", password);
     alert("Tentativa de login! Verifique o console para os dados.");
+
+    router.push("/home");
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
       <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-md text-center">
-
         <div className="flex justify-center mb-6">
           <Image
             src="/serveai-logo.png"
