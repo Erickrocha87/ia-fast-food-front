@@ -1,192 +1,240 @@
 "use client";
-import { useState } from "react";
-import { ShoppingCart, Trash2, Plus, Minus } from "lucide-react";
+import React, { useState } from "react";
 
-export default function CardapioPedido() {
-  const [carrinho, setCarrinho] = useState([]);
+const categoriasMenu = ["Entradas", "Pratos Principais", "Bebidas", "Sobremesas"];
 
-  const pratos = [
-    {
-      id: 1,
-      nome: "Pizza Margherita Clássica",
-      descricao: "Tomates frescos, mussarela, manjericão",
-      preco: 18.5,
-      imagem:
-        "https://images.unsplash.com/photo-1601924582971-df6b0c81e8ee?auto=format&fit=crop&w=800&q=80",
-    },
-    {
-      id: 2,
-      nome: "Hambúrguer Gourmet",
-      descricao: "Carne wagyu, maionese trufada, cheddar",
-      preco: 16.0,
-      imagem:
-        "https://images.unsplash.com/photo-1551782450-a2132b4ba21d?auto=format&fit=crop&w=800&q=80",
-    },
-  ];
+const itensMenuData = [
+  {
+    id: 1,
+    categoria: "Pratos Principais",
+    nome: "Pizza Margherita Clássica",
+    descricao: "Tomates frescos, mussarela, manjericão",
+    preco: 18.5,
+  },
+  {
+    id: 2,
+    categoria: "Pratos Principais",
+    nome: "Hambúrguer Gourmet",
+    descricao: "Carne wagyu, maionese trufada, cheddar",
+    preco: 16.0,
+  },
+  {
+    id: 3,
+    categoria: "Entradas",
+    nome: "Tacos Apimentados",
+    descricao: "Carnitas de porco, pico de gallo, molho picante",
+    preco: 12.0,
+  },
+  {
+    id: 4,
+    categoria: "Bebidas",
+    nome: "Limonada Fresca",
+    descricao: "Feita na hora, super refrescante",
+    preco: 7.0,
+  },
+];
 
-  const adicionarAoCarrinho = (prato) => {
-    const itemExistente = carrinho.find((item) => item.id === prato.id);
-    if (itemExistente) {
-      setCarrinho(
-        carrinho.map((item) =>
-          item.id === prato.id ? { ...item, qtd: item.qtd + 1 } : item
-        )
-      );
-    } else {
-      setCarrinho([...carrinho, { ...prato, qtd: 1 }]);
-    }
+const CustomerOrderMenu = () => {
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState("Pratos Principais");
+  const [itensCarrinho, setItensCarrinho] = useState([]);
+
+  const itensFiltrados = itensMenuData.filter(
+    (item) => item.categoria === categoriaSelecionada
+  );
+
+  const adicionarAoCarrinho = (itemAdicionar) => {
+    setItensCarrinho((prev) => {
+      const existente = prev.find((i) => i.id === itemAdicionar.id);
+      if (existente) {
+        return prev.map((i) =>
+          i.id === itemAdicionar.id ? { ...i, quantidade: i.quantidade + 1 } : i
+        );
+      } else {
+        return [...prev, { ...itemAdicionar, quantidade: 1 }];
+      }
+    });
   };
 
   const removerDoCarrinho = (id) => {
-    setCarrinho(carrinho.filter((item) => item.id !== id));
+    setItensCarrinho((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const alterarQuantidade = (id, delta) => {
-    setCarrinho(
-      carrinho
-        .map((item) =>
-          item.id === id ? { ...item, qtd: Math.max(1, item.qtd + delta) } : item
-        )
-        .filter((item) => item.qtd > 0)
+  const aumentarQuantidade = (id) => {
+    setItensCarrinho((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, quantidade: item.quantidade + 1 } : item
+      )
     );
   };
 
-  const subtotal = carrinho.reduce(
-    (acc, item) => acc + item.preco * item.qtd,
-    0
-  );
+  const diminuirQuantidade = (id) => {
+    setItensCarrinho((prev) =>
+      prev
+        .map((item) =>
+          item.id === id ? { ...item, quantidade: item.quantidade - 1 } : item
+        )
+        .filter((item) => item.quantidade > 0)
+    );
+  };
+
+  const calcularSubtotal = () =>
+    itensCarrinho.reduce(
+      (total, item) => total + item.preco * item.quantidade,
+      0
+    );
+
+  const subtotal = calcularSubtotal();
   const taxa = subtotal * 0.08;
   const total = subtotal + taxa;
 
+  const confirmarPedido = () => {
+    alert(
+      `Pedido realizado com sucesso!\n\nTotal: R$ ${total.toFixed(
+        2
+      )}\nItens: ${JSON.stringify(itensCarrinho, null, 2)}`
+    );
+    setItensCarrinho([]);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 py-10 px-4">
-      {/* Logo no topo */}
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-extrabold text-blue-700">ServeAI</h1>
-        <p className="text-gray-500 text-sm">Soluções inteligentes para restaurantes</p>
-      </div>
-
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-blue-700">Cardápio & Pedido</h2>
-        <p className="text-gray-600">Sua jornada gastronômica começa aqui!</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-        {/* Cardápio */}
-        <div className="md:col-span-2 space-y-4">
-          <h3 className="text-lg font-semibold text-blue-600 mb-2">
-            Pratos Principais
-          </h3>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            {pratos.map((prato) => (
-              <div
-                key={prato.id}
-                className="bg-blue-50 rounded-2xl p-4 shadow-sm border border-blue-100"
-              >
-                <img
-                  src={prato.imagem}
-                  alt={prato.nome}
-                  className="w-full h-40 object-cover rounded-xl mb-3"
-                />
-                <h4 className="text-lg font-semibold text-blue-800">
-                  {prato.nome}
-                </h4>
-                <p className="text-sm text-gray-600">{prato.descricao}</p>
-                <p className="font-bold text-blue-700 mt-2">
-                  R$ {prato.preco.toFixed(2)}
-                </p>
-
-                <div className="flex justify-between items-center mt-4">
-                  <button
-                    onClick={() => adicionarAoCarrinho(prato)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-full font-medium hover:bg-blue-700 transition"
-                  >
-                    Adicionar
-                  </button>
-
-                  <button
-                    onClick={() => removerDoCarrinho(prato.id)}
-                    className="text-red-500 hover:text-red-600 flex items-center text-sm gap-1 transition"
-                  >
-                    <Trash2 size={16} /> Remover
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="flex justify-center items-start min-h-screen bg-white">
+      <div className="bg-white w-full max-w-7xl min-h-screen p-10">
+        {/* Cabeçalho */}
+        <div className="flex flex-col items-center text-center mb-10">
+          <h1 className="text-3xl font-bold text-blue-800 mb-1">Cardápio & Pedido</h1>
+          <p className="text-blue-600">Sua jornada gastronômica começa aqui!</p>
         </div>
 
-        {/* Carrinho */}
-        <div className="bg-blue-100/60 p-6 rounded-2xl shadow-md">
-          <h3 className="text-lg font-semibold text-blue-700 mb-4">
-            Seu Carrinho
-          </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Menu */}
+          <div className="lg:col-span-2">
+            <h2 className="text-xl font-semibold text-blue-700 mb-4">
+              Categorias do Cardápio
+            </h2>
 
-          {carrinho.length === 0 ? (
-            <p className="text-gray-600 text-sm">
-              Seu carrinho está vazio.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {carrinho.map((item) => (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {categoriasMenu.map((categoria) => (
+                <button
+                  key={categoria}
+                  onClick={() => setCategoriaSelecionada(categoria)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+                    categoriaSelecionada === categoria
+                      ? "bg-blue-600 text-white shadow-md"
+                      : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  }`}
+                >
+                  {categoria}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4">
+              {itensFiltrados.map((item) => (
                 <div
                   key={item.id}
-                  className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm"
+                  className="flex flex-col justify-between bg-blue-50 p-4 rounded-xl shadow-sm hover:shadow-md transition"
                 >
                   <div>
-                    <h4 className="font-semibold text-gray-800">{item.nome}</h4>
-                    <p className="text-sm text-gray-500">
-                      R$ {item.preco.toFixed(2)} x {item.qtd}
+                    <h3 className="text-lg font-semibold text-blue-800">{item.nome}</h3>
+                    <p className="text-sm text-blue-600">{item.descricao}</p>
+                    <p className="text-blue-700 font-bold mt-2">
+                      R$ {item.preco.toFixed(2)}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="mt-3 flex items-center justify-between">
                     <button
-                      onClick={() => alterarQuantidade(item.id, -1)}
-                      className="bg-blue-500 text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-600 transition"
+                      onClick={() => adicionarAoCarrinho(item)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition"
                     >
-                      <Minus size={16} />
-                    </button>
-                    <span className="font-semibold">{item.qtd}</span>
-                    <button
-                      onClick={() => alterarQuantidade(item.id, +1)}
-                      className="bg-blue-500 text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-600 transition"
-                    >
-                      <Plus size={16} />
+                      Adicionar
                     </button>
                   </div>
                 </div>
               ))}
-
-              <hr className="my-3 border-blue-200" />
-
-              <div className="text-sm text-gray-700 space-y-1">
-                <p>
-                  Subtotal:{" "}
-                  <span className="float-right">
-                    R$ {subtotal.toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  Taxa (8%):{" "}
-                  <span className="float-right">R$ {taxa.toFixed(2)}</span>
-                </p>
-                <p className="font-bold text-blue-700 text-base">
-                  Total:{" "}
-                  <span className="float-right">
-                    R$ {total.toFixed(2)}
-                  </span>
-                </p>
-              </div>
-
-              <button className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl mt-4 hover:bg-blue-700 flex items-center justify-center gap-2 transition">
-                <ShoppingCart size={18} /> Finalizar Pedido
-              </button>
             </div>
-          )}
+          </div>
+
+          {/* Carrinho */}
+          <div className="bg-blue-50 p-6 rounded-2xl shadow-md">
+            <h2 className="text-xl font-semibold text-blue-700 mb-4">Seu Carrinho</h2>
+
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {itensCarrinho.length === 0 ? (
+                <p className="text-blue-500">Seu carrinho está vazio.</p>
+              ) : (
+                itensCarrinho.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center text-sm">
+                    <div>
+                      <span className="font-medium text-blue-800">{item.nome}</span>
+                      <p className="text-blue-500">
+                        R$ {item.preco.toFixed(2)} × {item.quantidade}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => diminuirQuantidade(item.id)}
+                        className="bg-white border border-blue-300 text-blue-700 px-2 rounded hover:bg-blue-100"
+                      >
+                        −
+                      </button>
+                      <span>{item.quantidade}</span>
+                      <button
+                        onClick={() => aumentarQuantidade(item.id)}
+                        className="bg-blue-600 text-white px-2 rounded hover:bg-blue-700"
+                      >
+                        +
+                      </button>
+                      <button
+                        onClick={() => removerDoCarrinho(item.id)}
+                        className="text-red-500 text-xs hover:text-red-700"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="border-t border-blue-300 my-4"></div>
+
+            <div className="space-y-2 text-sm text-blue-700">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>R$ {subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Taxa (8%):</span>
+                <span>R$ {taxa.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-lg text-blue-800">
+                <span>Total:</span>
+                <span>R$ {total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={confirmarPedido}
+              disabled={itensCarrinho.length === 0}
+              className={`mt-5 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${
+                itensCarrinho.length === 0
+                  ? "bg-blue-100 text-blue-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+            >
+              🛒 Finalizar Pedido
+            </button>
+          </div>
         </div>
+
+        <p className="text-center text-sm text-blue-500 mt-8">
+          Desenvolvido por <span className="text-blue-700 font-semibold">ServeAI</span>
+        </p>
       </div>
     </div>
   );
-}
+};
+
+export default CustomerOrderMenu;
