@@ -98,14 +98,20 @@ const CustomerOrderMenu = () => {
 
     return (
         <div className="flex justify-center items-start min-h-screen bg-white">
-            <div className="bg-white w-full max-w-7xl min-h-screen p-10">
+            <div className="bg-white w-full max-w-7xl min-h-screen p-10 mx-auto">
                 {/* Cabeçalho */}
-                <div>
-                    <img src="" alt="" />
-                </div>
-                <div className="flex flex-col items-center text-center mb-10">
-                    <h1 className="text-3xl font-bold text-blue-800 mb-1">Cardápio & Pedido</h1>
-                    <p className="text-blue-600">Sua jornada gastronômica começa aqui!</p>
+                <div className="flex flex-col items-center mb-10">
+                    <img
+                        src="robozinho.png"
+                        alt="Mascote ServeAI"
+                        className="w-24 h-24 object-contain mb-3"
+                    />
+                    <h1 className="text-3xl font-bold text-blue-800 mb-1">
+                        Cardápio & Pedido
+                    </h1>
+                    <p className="text-blue-600">
+                        Sua jornada gastronômica começa aqui!
+                    </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -121,8 +127,8 @@ const CustomerOrderMenu = () => {
                                     key={categoria}
                                     onClick={() => setCategoriaSelecionada(categoria)}
                                     className={`px-4 py-2 rounded-full text-sm font-medium transition ${categoriaSelecionada === categoria
-                                            ? "bg-blue-600 text-white shadow-md"
-                                            : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                        ? "bg-blue-600 text-white shadow-md"
+                                        : "bg-blue-100 text-blue-700 hover:bg-blue-200"
                                         }`}
                                 >
                                     {categoria}
@@ -221,8 +227,8 @@ const CustomerOrderMenu = () => {
                             onClick={confirmarPedido}
                             disabled={itensCarrinho.length === 0}
                             className={`mt-5 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${itensCarrinho.length === 0
-                                    ? "bg-blue-100 text-blue-400 cursor-not-allowed"
-                                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                                ? "bg-blue-100 text-blue-400 cursor-not-allowed"
+                                : "bg-blue-600 hover:bg-blue-700 text-white"
                                 }`}
                         >
                             🛒 Finalizar Pedido
