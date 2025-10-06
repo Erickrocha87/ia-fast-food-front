@@ -21,6 +21,7 @@ export const VoiceAssistant = () => {
     if (!listening && transcript) {
       sendTranscriptToBackend(transcript);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listening, transcript]);
 
   //envia texto pro backend
