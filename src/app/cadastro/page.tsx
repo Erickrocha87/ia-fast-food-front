@@ -2,17 +2,15 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import QuickToast from "@/components/ToastQuick";
+import { Button } from "@/components/Botao";
 
 const LoginCard = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
-   const [showToast, setShowToast] = useState(false);
 
   const handleLogin = (event: React.FormEvent) => {
     event.preventDefault();
-    setShowToast(true);
     setTimeout(() => {
       router.push("/home");
     }, 1500);
@@ -102,25 +100,11 @@ const LoginCard = () => {
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-400 text-white font-bold rounded-lg shadow hover:from-blue-600 hover:to-blue-500 transition-all cursor-pointer"
-          >
-            CADASTRAR-SE
-          </button>
+          <Button label="Cadastrar-se" type="submit" onClick={() => router.push("/")}/>
 
-          <button
-            type="button"
-            className="w-full mt-1 text-gray-500 text-sm underline hover:text-gray-700 transition cursor-pointer"
-            onClick={() => router.push("/")}
-          >
-            Faça login
-          </button>
+         <Button label="Login" type="button" onClick={() => router.push("/")}/>
         </form>
-
-        <p className="text-gray-500 text-sm mt-6">Powered by ServeAI</p>
       </div>
-        {showToast && ( <QuickToast message="Cadastro feito com sucesso" type="success" onClose={() => setShowToast(false)} duration={3000} /> )}
     </div>
   );
 };

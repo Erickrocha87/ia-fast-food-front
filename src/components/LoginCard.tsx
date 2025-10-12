@@ -2,17 +2,15 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import QuickToast from "./ToastQuick";
 
 const LoginCard = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
-  const [showToast, setShowToast] = useState(false);
+
 
   const handleLogin = (event: React.FormEvent) => {
     event.preventDefault();
-    setShowToast(true);
     setTimeout(() => {
       router.push("/home");
     }, 1500);
@@ -88,11 +86,7 @@ const LoginCard = () => {
             CADASTRAR
           </button>
         </form>
-
-        <p className="text-gray-500 text-sm mt-6">Powered by ServeAI</p>
       </div>
-
-      {showToast && ( <QuickToast message="Login Feito com sucesso" type="success" onClose={() => setShowToast(false)} duration={2000} /> )}
     </div>
   );
 };
