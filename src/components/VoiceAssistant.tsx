@@ -28,7 +28,7 @@ export const VoiceAssistant = () => {
   const sendTranscriptToBackend = async (text: string) => {
     setIsProcessing(true);
     try {
-      const chatResponse = await fetch("http://localhost:3000/chat", {
+      const chatResponse = await fetch("http://localhost:1337/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
@@ -41,7 +41,7 @@ export const VoiceAssistant = () => {
       const chatData = await chatResponse.json();
   
       //envia a resposta do chat pro TTS
-      const ttsResponse = await fetch("http://localhost:3000/api/tts", {
+      const ttsResponse = await fetch("http://localhost:1337/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: chatData.responseMessage }),
