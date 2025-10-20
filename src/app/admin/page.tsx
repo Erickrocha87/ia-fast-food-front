@@ -20,19 +20,19 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
         <StatCard
           icon={<Clock className="text-orange-500" size={22} />}
-          title="Live Orders"
+          title="Ordens Ativas"
           value={`${stats.liveOrders} Active`}
           subtitle={`Avg. Prep: ${stats.avgPrep} min`}
         />
         <StatCard
           icon={<DollarSign className="text-green-600" size={22} />}
-          title="Today's Revenue"
+          title="Lucro de Hoje"
           value={`$${stats.revenue.toLocaleString()}`}
           subtitle="Avg. Prep Time: 12 min"
         />
         <StatCard
           icon={<Users className="text-blue-600" size={22} />}
-          title="New Customers"
+          title="Novos Clientes"
           value={stats.newCustomers}
           subtitle="Today"
         />

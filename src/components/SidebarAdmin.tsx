@@ -39,7 +39,7 @@ export function SidebarAdmin() {
         ))}
       </nav>
 
-      <p className="text-xs text-center opacity-70 pb-4">Powered by ServeAI</p>
+      <p className="text-xs text-center opacity-70 pb-4">Desenvolvido por ServeAI</p>
     </aside>
   );
 }
