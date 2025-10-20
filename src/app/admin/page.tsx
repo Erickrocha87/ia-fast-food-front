@@ -22,19 +22,19 @@ export default function AdminDashboard() {
           icon={<Clock className="text-orange-500" size={22} />}
           title="Ordens Ativas"
           value={`${stats.liveOrders} Active`}
-          subtitle={`Avg. Prep: ${stats.avgPrep} min`}
+          subtitle={`Tempo médio de preparo: ${stats.avgPrep} min`}
         />
         <StatCard
           icon={<DollarSign className="text-green-600" size={22} />}
           title="Lucro de Hoje"
           value={`$${stats.revenue.toLocaleString()}`}
-          subtitle="Avg. Prep Time: 12 min"
+          subtitle="Lucro médio por pedido: R$ 7,50"
         />
         <StatCard
           icon={<Users className="text-blue-600" size={22} />}
           title="Novos Clientes"
           value={stats.newCustomers}
-          subtitle="Today"
+          subtitle="Hoje"
         />
       </div>
 
