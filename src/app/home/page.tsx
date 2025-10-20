@@ -1,121 +1,81 @@
 "use client";
-import { useState } from "react";
+import { Card } from "@/components/Card";
+import Image from "next/image";
 import Link from "next/link";
-import { DollarSign, Users, Clock, Home, List, Utensils, FileText, Settings } from "lucide-react";
+import dynamic from "next/dynamic";
+
+//desabilitando o SSR
+const VoiceAssistant = dynamic(
+  () => import("@/components/VoiceAssistant").then((mod) => mod.VoiceAssistant),
+  { ssr: false }
+);
+
+const restaurantName = "Restaurante X";
 
 export default function HomeDashboard() {
-  const adminName = "Admin Name";
-
-  const [stats] = useState({
-    liveOrders: 5,
-    avgPrep: 12,
-    revenue: 1250,
-    newCustomers: 15,
-  });
-
   return (
-    <main className="min-h-screen flex bg-gray-50 text-gray-800">
-      {/* Sidebar */}
-      <aside className="w-64 bg-gradient-to-b from-blue-700 to-blue-500 text-white flex flex-col rounded-r-2xl shadow-lg">
-        <div className="p-6 text-center border-b border-blue-400">
-          <div className="text-3xl font-bold tracking-tight">ServeAI</div>
-          <p className="text-xs opacity-80 mt-1">Admin Panel</p>
-        </div>
+    <main className="min-h-screen flex flex-col items-center bg-gray-50 py-10 px-4">
+      <Image
+        src="/serveai-logo.png"
+        alt="ServeAI Logo"
+        width={100}
+        height={100}
+        className="mb-6"
+        priority
+      />
+      <h1 className="text-3xl font-bold text-gray-800 mb-2">
+        Bem-vindo, {restaurantName}!
+      </h1>
+      <p className="text-base text-gray-600 mb-8">Dashboard</p>
 
-        <nav className="flex-1 p-4 space-y-3">
-          <SidebarItem icon={<Home size={18} />} text="Dashboard" active />
-          <SidebarItem icon={<List size={18} />} text="Dashboards" />
-          <SidebarItem icon={<Utensils size={18} />} text="Menu Management" />
-          <SidebarItem icon={<Users size={18} />} text="Customers" />
-          <SidebarItem icon={<FileText size={18} />} text="Reports" />
-          <SidebarItem icon={<Settings size={18} />} text="Settings" />
-        </nav>
-
-        <p className="text-xs text-center opacity-70 pb-4">Powered by ServeAI</p>
-      </aside>
-
-      {/* Main content */}
-      <section className="flex-1 p-10">
-        <h1 className="text-3xl font-bold mb-1">
-          Welcome, <span className="text-blue-700">{adminName}</span>!
-        </h1>
-        <p className="text-gray-600 mb-8">Restaurant Management Hub</p>
-
-        {/* Stats cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-          <StatCard
-            icon={<Clock className="text-orange-500" size={22} />}
-            title="Live Orders"
-            value={`${stats.liveOrders} Active`}
-            subtitle={`Avg. Prep: ${stats.avgPrep} min`}
-            color="orange"
-          />
-          <StatCard
-            icon={<DollarSign className="text-green-600" size={22} />}
-            title="Today's Revenue"
-            value={`$${stats.revenue.toLocaleString()}`}
-            subtitle={`Avg. Prep Time: ${stats.avgPrep} min`}
-            color="green"
-          />
-          <StatCard
-            icon={<Users className="text-blue-600" size={22} />}
-            title="New Customers"
-            value={stats.newCustomers}
-            subtitle="Today"
-            color="blue"
-          />
-        </div>
-
-        {/* Quick actions */}
-        <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-        <div className="flex flex-wrap gap-4">
-          <button className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold shadow">
-            + Add New Item
-          </button>
-          <button className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-2 rounded-lg font-semibold shadow">
-            View Reports
-          </button>
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function SidebarItem({ icon, text, active = false }: { icon: any; text: string; active?: boolean }) {
-  return (
-    <div
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${
-        active
-          ? "bg-white text-blue-700 font-semibold"
-          : "hover:bg-blue-600 hover:bg-opacity-50"
-      }`}
-    >
-      {icon}
-      <span>{text}</span>
-    </div>
-  );
-}
-
-function StatCard({
-  icon,
-  title,
-  value,
-  subtitle,
-}: {
-  icon: any;
-  title: string;
-  value: string | number;
-  subtitle: string;
-  color?: string;
-}) {
-  return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col border border-gray-100">
-      <div className="flex items-center gap-2 mb-2">
-        {icon}
-        <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+      <div className="w-full max-w-md p-6 mb-10 bg-white rounded-xl shadow-lg">
+        <h2 className="text-xl font-semibold text-center mb-4 text-gray-600">
+          Assistente de Voz AI
+        </h2>
+        <VoiceAssistant />
       </div>
-      <div className="text-2xl font-bold mb-1">{value}</div>
-      <p className="text-sm text-gray-500">{subtitle}</p>
-    </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl mb-10">
+        <Card
+          linkName="Novo Pedido"
+          label="Inicie um novo pedido para o cliente de forma rápida e eficiente."
+          buttonString="Iniciar Pedido"
+        />
+
+        <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center hover:-translate-y-1 transition-transform">
+          <span className="text-4xl mb-3 text-red-500">🕒</span>
+          <h3 className="text-xl font-bold mb-2 text-red-700">
+            Pedidos ao Vivo
+          </h3>
+          <p className="text-gray-700 mb-4 text-center">
+            3 pedidos ativos
+            <br />
+            Tempo médio: 15 min
+          </p>
+          <Link href="/live-orders">
+            <button className="w-full py-2 bg-gradient-to-r from-blue-500 to-blue-300 text-white rounded font-bold shadow hover:from-blue-600 hover:to-blue-400 transition">
+              Ver Pedidos
+            </button>
+          </Link>
+        </div>
+        
+        <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center hover:-translate-y-1 transition-transform">
+          <span className="text-4xl mb-3 text-blue-500">📝</span>
+          <h3 className="text-xl font-bold mb-2 text-blue-700">
+            Gerenciar Cardápio
+          </h3>
+          <p className="text-gray-700 mb-4 text-center">
+            Atualize itens, preços e descrições do cardápio do restaurante.
+          </p>
+          <Link href="/menu-management">
+            <button className="w-full py-2 bg-gradient-to-r from-blue-500 to-blue-300 text-white rounded font-bold shadow hover:from-blue-600 hover:to-blue-400 transition">
+              Editar Cardápio
+            </button>
+          </Link>
+        </div>
+      </div>
+
+      <p className="text-sm text-gray-500 mt-auto pt-8">Powered by ServeAI</p>
+    </main>
   );
 }
