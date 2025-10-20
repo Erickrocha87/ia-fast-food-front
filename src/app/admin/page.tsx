@@ -13,9 +13,9 @@ export default function AdminDashboard() {
   return (
     <section>
       <h1 className="text-3xl font-bold mb-1">
-        Welcome, <span className="text-blue-700">Admin Name</span>!
+        Bem-vindo, <span className="text-blue-700">Admin Name</span>!
       </h1>
-      <p className="text-gray-600 mb-8">Restaurant Management Hub</p>
+      <p className="text-gray-600 mb-8">Desempenho do Restaurante</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
         <StatCard
@@ -41,10 +41,10 @@ export default function AdminDashboard() {
       <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
       <div className="flex flex-wrap gap-4">
         <button className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold shadow">
-          + Add New Item
+          + Adicionar novo item
         </button>
         <button className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-2 rounded-lg font-semibold shadow">
-          View Reports
+          Ver relatórios
         </button>
       </div>
     </section>

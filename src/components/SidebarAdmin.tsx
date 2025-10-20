@@ -8,11 +8,11 @@ export function SidebarAdmin() {
 
   const items = [
     { name: "Dashboard", href: "/admin", icon: <Home size={18} /> },
-    { name: "Dashboards", href: "/admin/dashboards", icon: <List size={18} /> },
-    { name: "Menu Management", href: "/admin/menu-management", icon: <Utensils size={18} /> },
-    { name: "Customers", href: "/admin/customers", icon: <Users size={18} /> },
-    { name: "Reports", href: "/admin/reports", icon: <FileText size={18} /> },
-    { name: "Settings", href: "/admin/settings", icon: <Settings size={18} /> },
+    { name: "Gráficos", href: "/admin/dashboards", icon: <List size={18} /> },
+    { name: "Cardápio", href: "/admin/menu-management", icon: <Utensils size={18} /> },
+    { name: "Clientes", href: "/admin/customers", icon: <Users size={18} /> },
+    { name: "Relatórios", href: "/admin/reports", icon: <FileText size={18} /> },
+    { name: "Configurações", href: "/admin/settings", icon: <Settings size={18} /> },
   ];
 
   return (
