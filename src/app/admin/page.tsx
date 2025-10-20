@@ -13,7 +13,7 @@ export default function AdminDashboard() {
   return (
     <section>
       <h1 className="text-3xl font-bold mb-1">
-        Bem-vindo, <span className="text-blue-700">Admin Name</span>!
+        Bem-vindo, <span className="text-blue-700">Variável de nome</span>!
       </h1>
       <p className="text-gray-600 mb-8">Desempenho do Restaurante</p>
 
