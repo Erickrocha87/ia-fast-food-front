@@ -38,15 +38,6 @@ export default function AdminDashboard() {
         />
       </div>
 
-      <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-      <div className="flex flex-wrap gap-4">
-        <button className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold shadow">
-          + Adicionar novo item
-        </button>
-        <button className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-2 rounded-lg font-semibold shadow">
-          Ver relatórios
-        </button>
-      </div>
     </section>
   );
 }
