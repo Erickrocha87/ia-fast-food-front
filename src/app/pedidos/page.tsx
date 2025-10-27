@@ -1,5 +1,7 @@
 "use client";
 import React, { useState } from "react";
+import { VoiceAssistant } from "@/components/VoiceAssistant";
+import { useVoiceCommands } from "../hooks/useVoiceCommands";
 
 const categoriasMenu = ["Entradas", "Pratos Principais", "Bebidas", "Sobremesas"];
 
@@ -36,13 +38,14 @@ const itensMenuData = [
 
 const CustomerOrderMenu = () => {
     const [categoriaSelecionada, setCategoriaSelecionada] = useState("Pratos Principais");
-    const [itensCarrinho, setItensCarrinho] = useState([]);
+    const [itensCarrinho, setItensCarrinho] = useState<any[]>([]);
+    const [ultimoComando, setUltimoComando] = useState("");
 
-    const itensFiltrados = itensMenuData.filter(
-        (item) => item.categoria === categoriaSelecionada
-    );
+    // ============================
+    // 📦 Funções do carrinho
+    // ============================
 
-    const adicionarAoCarrinho = (itemAdicionar) => {
+    const adicionarAoCarrinho = (itemAdicionar: any) => {
         setItensCarrinho((prev) => {
             const existente = prev.find((i) => i.id === itemAdicionar.id);
             if (existente) {
@@ -55,11 +58,11 @@ const CustomerOrderMenu = () => {
         });
     };
 
-    const removerDoCarrinho = (id) => {
+    const removerDoCarrinho = (id: number) => {
         setItensCarrinho((prev) => prev.filter((item) => item.id !== id));
     };
 
-    const aumentarQuantidade = (id) => {
+    const aumentarQuantidade = (id: number) => {
         setItensCarrinho((prev) =>
             prev.map((item) =>
                 item.id === id ? { ...item, quantidade: item.quantidade + 1 } : item
@@ -67,7 +70,7 @@ const CustomerOrderMenu = () => {
         );
     };
 
-    const diminuirQuantidade = (id) => {
+    const diminuirQuantidade = (id: number) => {
         setItensCarrinho((prev) =>
             prev
                 .map((item) =>
@@ -78,10 +81,7 @@ const CustomerOrderMenu = () => {
     };
 
     const calcularSubtotal = () =>
-        itensCarrinho.reduce(
-            (total, item) => total + item.preco * item.quantidade,
-            0
-        );
+        itensCarrinho.reduce((total, item) => total + item.preco * item.quantidade, 0);
 
     const subtotal = calcularSubtotal();
     const taxa = subtotal * 0.08;
@@ -95,6 +95,35 @@ const CustomerOrderMenu = () => {
         );
         setItensCarrinho([]);
     };
+
+    // ============================
+    // 🎤 Integração com voz
+    // ============================
+
+    useVoiceCommands(ultimoComando, {
+        adicionar: (nomeItem: string) => {
+            const item = itensMenuData.find((i) =>
+                i.nome.toLowerCase().includes(nomeItem.toLowerCase())
+            );
+            if (item) adicionarAoCarrinho(item);
+        },
+        remover: (nomeItem: string) => {
+            const item = itensMenuData.find((i) =>
+                i.nome.toLowerCase().includes(nomeItem.toLowerCase())
+            );
+            if (item) removerDoCarrinho(item.id);
+        },
+        finalizar: confirmarPedido,
+    });
+
+
+    // ============================
+    // 🖼️ Renderização
+    // ============================
+
+    const itensFiltrados = itensMenuData.filter(
+        (item) => item.categoria === categoriaSelecionada
+    );
 
     return (
         <div className="flex justify-center items-start min-h-screen bg-white">
@@ -165,7 +194,9 @@ const CustomerOrderMenu = () => {
 
                     {/* Carrinho */}
                     <div className="bg-blue-50 p-6 rounded-2xl shadow-md">
-                        <h2 className="text-xl font-semibold text-blue-700 mb-4">Seu Carrinho</h2>
+                        <h2 className="text-xl font-semibold text-blue-700 mb-4">
+                            Seu Carrinho
+                        </h2>
 
                         <div className="space-y-3 max-h-64 overflow-y-auto">
                             {itensCarrinho.length === 0 ? (
@@ -234,6 +265,11 @@ const CustomerOrderMenu = () => {
                             🛒 Finalizar Pedido
                         </button>
                     </div>
+                </div>
+
+                {/* Assistente de Voz */}
+                <div className="fixed bottom-6 right-6 z-50">
+                    <VoiceAssistant onTranscript={setUltimoComando} />
                 </div>
 
                 <p className="text-center text-sm text-blue-500 mt-8">

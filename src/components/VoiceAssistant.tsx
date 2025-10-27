@@ -1,12 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import SpeechRecognition, {
-  useSpeechRecognition,
-} from "react-speech-recognition";
+import dynamic from "next/dynamic";
+import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { FaMicrophone, FaSpinner } from "react-icons/fa";
 
-export const VoiceAssistant = () => {
+interface VoiceAssistantProps {
+  onTranscript: (text: string) => void;
+}
+
+export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ onTranscript }) => {
+  const [isClient, setIsClient] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -17,51 +21,52 @@ export const VoiceAssistant = () => {
     browserSupportsSpeechRecognition,
   } = useSpeechRecognition();
 
+  // ✅ Só roda no cliente
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // 🚀 Quando o usuário para de falar
   useEffect(() => {
     if (!listening && transcript) {
-      sendTranscriptToBackend(transcript);
+      handleCommand(transcript);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listening, transcript]);
 
-  //envia texto pro backend
-  const sendTranscriptToBackend = async (text: string) => {
+  const speak = (msg: string) => {
+    return new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(msg);
+      utterance.lang = "pt-BR";
+      utterance.onend = () => resolve();
+      speechSynthesis.speak(utterance);
+    });
+  };
+
+  const handleCommand = async (text: string) => {
     setIsProcessing(true);
+    onTranscript(text);
+
     try {
-      const chatResponse = await fetch("http://localhost:3000/chat", {
+      // envia para o backend /chat (pra gerar resposta inteligente)
+      const chatResponse = await fetch("http://localhost:1337/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
 
-      if (!chatResponse.ok) {
-        throw new Error(`Erro na rota /chat: ${chatResponse.statusText}`);
-      }
+      if (!chatResponse.ok) throw new Error("Erro no backend /chat");
 
       const chatData = await chatResponse.json();
-  
-      //envia a resposta do chat pro TTS
-      const ttsResponse = await fetch("http://localhost:3000/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: chatData.responseMessage }),
-      });
+      const resposta = chatData.responseMessage || "Entendido!";
 
-      if (!ttsResponse.ok) {
-        throw new Error(`Erro na rota /api/tts: ${ttsResponse.statusText}`);
-      }
-
-      const audioBlob = await ttsResponse.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-
-      //reproduz o áudio recebido
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.play();
-      }
+      // 🔊 Fala e espera terminar
+      await speak(resposta);
     } catch (error) {
-      console.error("Erro ao se comunicar com o backend:", error);
+      console.error("Erro ao processar comando:", error);
+      await speak("Desculpe, houve um problema ao processar sua fala.");
     } finally {
+      setIsProcessing(false);
       resetTranscript();
     }
   };
@@ -77,6 +82,9 @@ export const VoiceAssistant = () => {
       });
     }
   };
+
+  // Evita render SSR
+  if (!isClient) return null;
 
   if (!browserSupportsSpeechRecognition) {
     return <span>Seu navegador não suporta reconhecimento de voz.</span>;
@@ -103,14 +111,17 @@ export const VoiceAssistant = () => {
       </button>
       <p className="mt-4 text-gray-600 h-6">
         {listening
-          ? "ouvindo"
+          ? "Ouvindo..."
           : isProcessing
-          ? "processando"
+          ? "Processando..."
           : transcript
-          ? `eu disse: ${transcript}`
+          ? `Você disse: ${transcript}`
           : "Clique no microfone para falar"}
       </p>
-      <audio ref={audioRef} onEnded={() => setIsProcessing(false)} hidden />
+      <audio ref={audioRef} hidden />
     </div>
   );
 };
+
+// ✅ Corrige SSR import
+export default dynamic(() => Promise.resolve(VoiceAssistant), { ssr: false });
