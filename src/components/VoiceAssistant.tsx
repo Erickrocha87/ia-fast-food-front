@@ -45,7 +45,7 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ onTranscript }) 
 
   const handleCommand = async (text: string) => {
     setIsProcessing(true);
-    onTranscript(text);
+    // onTranscript(text);
 
     try {
       const chatResponse = await fetch("http://localhost:1337/chat", {
@@ -57,10 +57,25 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ onTranscript }) 
       if (!chatResponse.ok) throw new Error("Erro no backend /chat");
 
       const chatData = await chatResponse.json();
-      const resposta = chatData.responseMessage || "Entendido!";
+      //envia a resposta do chat pro TTS
+      const ttsResponse = await fetch("http://localhost:1337/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: chatData.responseMessage }),
+      });
 
-      // 🔊 Fala e espera terminar
-      await speak(resposta);
+      if (!ttsResponse.ok) {
+        throw new Error(`Erro na rota /api/tts: ${ttsResponse.statusText}`);
+      }
+
+      const audioBlob = await ttsResponse.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      //reproduz o áudio recebido
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.play();
+      }
     } catch (error) {
       console.error("Erro ao processar comando:", error);
       await speak("Desculpe, houve um problema ao processar sua fala.");
