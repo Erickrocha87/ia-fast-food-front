@@ -1,82 +1,66 @@
-"use client"
+"use client";
 
-import React, { useState } from "react"
+import { useRef } from "react";
+import Papa from "papaparse";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
-export const CSVUploadModal = ({
-  open,
-  onClose,
-}: {
-  open: boolean
-  onClose: () => void
-}) => {
-  const [file, setFile] = useState<File | null>(null)
+interface CSVUploadModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({ open, onClose }) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    if (selectedFile) {
-      setFile(selectedFile)
-    }
-  }
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const parseCSV = (csvText: string) => {
-    const lines = csvText.trim().split("\n")
-    const headers = lines[0].split(",").map((h) => h.trim())
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        console.log("✅ CSV lido com sucesso:", results.data);
 
-    const items = lines.slice(1).map((line) => {
-      const values = line.split(",").map((v) => v.trim())
-      const obj: any = {}
-      headers.forEach((header, index) => {
-        obj[header] = values[index]
-      })
-      return obj
-    })
+        localStorage.setItem("cardapio", JSON.stringify(results.data));
+        alert("✅ Cardápio importado com sucesso!");
+        onClose();
+      },
+      error: (err) => {
+        console.error("❌ Erro ao ler CSV:", err);
+        alert("Erro ao importar o CSV. Verifique o formato.");
+      },
+    });
+  };
 
-    return items
-  }
-
-  const handleImport = () => {
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result as string
-      const parsed = parseCSV(text)
-      localStorage.setItem("cardapio", JSON.stringify(parsed))
-      alert("✅ Cardápio salvo no navegador!")
-      onClose()
-      window.location.reload()
-    }
-    reader.readAsText(file)
-  }
-
-  if (!open) return null
+  const handleButtonClick = () => {
+    fileInputRef.current?.click(); // 👉 abre o Windows Explorer
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-96 shadow-lg">
-        <h2 className="text-xl font-semibold mb-3">Importar Cardápio (CSV)</h2>
-        <input
-          type="file"
-          accept=".csv"
-          onChange={handleFileUpload}
-          className="mb-4"
-        />
-        {file && <p className="text-sm text-gray-600 mb-3">Arquivo: {file.name}</p>}
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Importar Cardápio CSV</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col items-center justify-center py-6">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".csv"
+            onChange={handleFileUpload}
+            hidden
+          />
+          <Button
+            onClick={handleButtonClick}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
           >
-            Cancelar
-          </button>
-          <button
-            onClick={handleImport}
-            disabled={!file}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Importar
-          </button>
+            📂 Selecionar Arquivo CSV
+          </Button>
         </div>
-      </div>
-    </div>
-  )
-}
+      </DialogContent>
+    </Dialog>
+  );
+};
