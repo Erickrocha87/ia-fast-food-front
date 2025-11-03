@@ -4,71 +4,44 @@ import { Icon } from "@iconify/react";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { useVoiceCommands } from "../hooks/useVoiceCommands";
 
-const categoriasMenu = ["Todos", "Entradas", "Pratos Principais", "Bebidas", "Sobremesas"];
+const categoriasMenu = ["Todos", "Pizzas", "Lanches", "Bebidas", "Sobremesas"];
 
 const itensMenuData = [
-  {
-    id: 1,
-    categoria: "Pratos Principais",
-    nome: "Pizza Margherita",
-    descricao: "Molho, mussarela e manjericão",
-    preco: 45.9,
-  },
-  {
-    id: 2,
-    categoria: "Pratos Principais",
-    nome: "Pizza Calabresa",
-    descricao: "Molho, mussarela e calabresa",
-    preco: 48.9,
-  },
-  {
-    id: 3,
-    categoria: "Bebidas",
-    nome: "Refrigerante Lata",
-    descricao: "Coca-Cola, Guaraná ou Fanta",
-    preco: 8.0,
-  },
-  {
-    id: 4,
-    categoria: "Lanches",
-    nome: "Hambúrguer Artesanal",
-    descricao: "180g de carne, queijo e molho especial",
-    preco: 32.9,
-  },
+  { id: 1, categoria: "Pizzas", nome: "Pizza Margherita", descricao: "Molho, mussarela e manjericão", preco: 45.9 },
+  { id: 2, categoria: "Pizzas", nome: "Pizza Calabresa", descricao: "Molho, mussarela e calabresa", preco: 48.9 },
+  { id: 3, categoria: "Lanches", nome: "Hambúrguer Artesanal", descricao: "180g de carne, queijo e molho especial", preco: 32.9 },
+  { id: 4, categoria: "Bebidas", nome: "Refrigerante Lata", descricao: "Coca-Cola, Guaraná ou Fanta", preco: 8.0 },
 ];
 
 export default function CustomerOrderMenu() {
   const [categoriaSelecionada, setCategoriaSelecionada] = useState("Todos");
   const [itensCarrinho, setItensCarrinho] = useState<any[]>([]);
   const [ultimoComando, setUltimoComando] = useState("");
+  const [busca, setBusca] = useState("");
 
-  // ======= Carrinho =======
+  // ======== Carrinho ========
   const adicionarAoCarrinho = (itemAdicionar: any) => {
     setItensCarrinho((prev) => {
       const existente = prev.find((i) => i.id === itemAdicionar.id);
-      if (existente) {
-        return prev.map((i) =>
-          i.id === itemAdicionar.id ? { ...i, quantidade: i.quantidade + 1 } : i
-        );
-      } else {
-        return [...prev, { ...itemAdicionar, quantidade: 1 }];
-      }
+      return existente
+        ? prev.map((i) =>
+            i.id === itemAdicionar.id ? { ...i, quantidade: i.quantidade + 1 } : i
+          )
+        : [...prev, { ...itemAdicionar, quantidade: 1 }];
     });
   };
 
-  const removerDoCarrinho = (id: number) => {
+  const removerDoCarrinho = (id: number) =>
     setItensCarrinho((prev) => prev.filter((item) => item.id !== id));
-  };
 
-  const aumentarQuantidade = (id: number) => {
+  const aumentarQuantidade = (id: number) =>
     setItensCarrinho((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, quantidade: item.quantidade + 1 } : item
       )
     );
-  };
 
-  const diminuirQuantidade = (id: number) => {
+  const diminuirQuantidade = (id: number) =>
     setItensCarrinho((prev) =>
       prev
         .map((item) =>
@@ -76,7 +49,6 @@ export default function CustomerOrderMenu() {
         )
         .filter((item) => item.quantidade > 0)
     );
-  };
 
   const subtotal = itensCarrinho.reduce(
     (total, item) => total + item.preco * item.quantidade,
@@ -89,7 +61,7 @@ export default function CustomerOrderMenu() {
     setItensCarrinho([]);
   };
 
-  // ======= Voz =======
+  // ======== IA Voz ========
   useVoiceCommands(ultimoComando, {
     adicionar: (nomeItem: string) => {
       const item = itensMenuData.find((i) =>
@@ -106,36 +78,61 @@ export default function CustomerOrderMenu() {
     finalizar: confirmarPedido,
   });
 
-  // ======= Filtro =======
-  const itensFiltrados =
-    categoriaSelecionada === "Todos"
-      ? itensMenuData
-      : itensMenuData.filter((item) => item.categoria === categoriaSelecionada);
+  // ======== Filtros ========
+  const itensFiltrados = itensMenuData.filter((item) => {
+    const matchCategoria =
+      categoriaSelecionada === "Todos" || item.categoria === categoriaSelecionada;
+    const matchBusca = item.nome.toLowerCase().includes(busca.toLowerCase());
+    return matchCategoria && matchBusca;
+  });
 
-  // ======= Layout =======
+  // ======== Layout ========
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f9f8ff] to-[#eef1ff] text-gray-800 flex flex-col items-center py-10">
+    <div className="min-h-screen bg-gradient-to-b from-[#f9f8ff] to-[#eef1ff] text-gray-800 flex flex-col items-center py-8">
       {/* Cabeçalho */}
-      <header className="text-center mb-8">
-        <div className="flex flex-col items-center mb-4">
-          <Icon icon="fluent:food-24-filled" className="w-12 h-12 text-[#6b46ff]" />
-          <h1 className="text-3xl font-bold text-[#4b38ff] mt-2">
-            Cardápio & Pedido
-          </h1>
-          <p className="text-sm text-[#6b46ff]">
-            Sua jornada gastronômica começa aqui!
-          </p>
+      <header className="w-full max-w-7xl flex flex-wrap justify-between items-center px-6 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-br from-[#8b5cf6] to-[#3b82f6] p-3 rounded-2xl text-white shadow-md">
+            <Icon icon="fluent:food-24-filled" className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-sm font-medium text-[#6b46ff]">
+              Fazer Pedido
+            </h1>
+            <p className="text-xs text-gray-500">Onde vai a mesa atual</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mt-3 sm:mt-0">
+          <button
+            onClick={() => document.getElementById("mic-btn")?.click()}
+            className="flex items-center gap-2 bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white px-4 py-2 rounded-xl text-sm shadow hover:opacity-90"
+          >
+            <Icon icon="fluent:mic-24-filled" className="w-4 h-4" />
+            Falar
+          </button>
         </div>
       </header>
 
-      {/* Container */}
+      {/* Barra de busca */}
+      <div className="w-full max-w-7xl px-6 mb-6">
+        <div className="flex items-center bg-white rounded-xl shadow-sm border border-[#e6e4ff] px-4 py-2">
+          <Icon icon="fluent:search-20-regular" className="text-[#6b46ff] w-5 h-5" />
+          <input
+            type="text"
+            placeholder="Buscar no cardápio..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            className="flex-1 ml-3 outline-none text-sm bg-transparent text-gray-700"
+          />
+        </div>
+      </div>
+
+      {/* Conteúdo */}
       <main className="w-full max-w-7xl px-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Coluna Menu */}
         <section className="lg:col-span-2">
-          <h2 className="text-lg font-semibold text-[#4c33ff] mb-3">
-            Categorias do Cardápio
-          </h2>
-
+          {/* Categorias */}
           <div className="flex flex-wrap gap-2 mb-6">
             {categoriasMenu.map((categoria) => (
               <button
@@ -152,6 +149,7 @@ export default function CustomerOrderMenu() {
             ))}
           </div>
 
+          {/* Itens */}
           <div className="grid sm:grid-cols-2 gap-5">
             {itensFiltrados.map((item) => (
               <div
@@ -182,7 +180,7 @@ export default function CustomerOrderMenu() {
           </div>
         </section>
 
-        {/* Coluna Carrinho */}
+        {/* Carrinho */}
         <aside className="bg-white border border-[#e6e4ff] rounded-2xl p-6 shadow-md h-fit">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-[#4b38ff]">Carrinho</h2>
@@ -234,7 +232,6 @@ export default function CustomerOrderMenu() {
             </div>
           )}
 
-          {/* Total */}
           <div className="border-t border-[#eeeaff] my-4"></div>
           <div className="space-y-1 text-sm text-gray-700">
             <div className="flex justify-between">
@@ -247,7 +244,6 @@ export default function CustomerOrderMenu() {
             </div>
           </div>
 
-          {/* Botão */}
           <button
             onClick={confirmarPedido}
             disabled={itensCarrinho.length === 0}
@@ -263,12 +259,11 @@ export default function CustomerOrderMenu() {
         </aside>
       </main>
 
-      {/* Assistente de Voz */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <VoiceAssistant onTranscript={setUltimoComando} />
+      {/* Assistente de Voz (oculto no botão Falar) */}
+      <div className="hidden">
+        <VoiceAssistant id="mic-btn" onTranscript={setUltimoComando} />
       </div>
 
-      {/* Rodapé */}
       <footer className="text-sm text-[#6b46ff] mt-10">
         Desenvolvido por <span className="font-semibold">ServeAI</span>
       </footer>
