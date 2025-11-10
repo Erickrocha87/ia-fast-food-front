@@ -2,10 +2,66 @@
 
 import { useState } from "react";
 import Head from "next/head";
-import { Icon } from "@iconify/react"; // 👈 importação do Iconify
+import { useRouter } from "next/navigation";
+import { Icon } from "@iconify/react";
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [restaurantName, setRestaurantName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const endpoint = isLogin ? "/login" : "/register";
+      const url = `${process.env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+      const payload = isLogin
+        ? { email, password }
+        : { email, password, restaurantName };
+
+      // Validação simples antes de enviar
+      if (!isLogin && password !== confirmPassword) {
+        alert("As senhas não coincidem!");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "Erro ao processar a solicitação.");
+        setLoading(false);
+        return;
+      }
+
+      if (isLogin) {
+        // Guardar token JWT localmente
+        localStorage.setItem("token", data.token);
+        router.push("/admin"); // redirecionar para dashboard
+      } else {
+        alert("Conta criada com sucesso! Faça login agora.");
+        setIsLogin(true);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro de conexão com o servidor.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -78,10 +134,7 @@ export default function LoginPage() {
               {/* Interface intuitiva */}
               <div className="bg-white border border-[#e3e8ff] shadow-sm rounded-2xl p-5 flex flex-col items-center text-center transition hover:-translate-y-1 hover:shadow-md duration-300">
                 <div className="bg-[#3b82f6] text-white p-3 rounded-xl mb-3 shadow-md flex items-center justify-center">
-                  <Icon
-                    icon="fluent-emoji-flat:laptop"
-                    className="w-8 h-8"
-                  />
+                  <Icon icon="fluent-emoji-flat:laptop" className="w-8 h-8" />
                 </div>
                 <h3 className="text-sm font-semibold text-[#2563eb]">
                   Interface Intuitiva
@@ -127,12 +180,29 @@ export default function LoginPage() {
             </div>
 
             {/* Formulário */}
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              {!isLogin && (
+                <div>
+                  <label className="text-sm text-gray-600">
+                    Nome do Restaurante
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Pizzaria do João"
+                    value={restaurantName}
+                    onChange={(e) => setRestaurantName(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="text-sm text-gray-600">Email</label>
                 <input
                   type="email"
                   placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-4 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -141,6 +211,8 @@ export default function LoginPage() {
                 <input
                   type="password"
                   placeholder="********"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-4 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -153,6 +225,8 @@ export default function LoginPage() {
                   <input
                     type="password"
                     placeholder="********"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full border border-gray-200 rounded-lg px-4 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
                   />
                 </div>
@@ -160,9 +234,14 @@ export default function LoginPage() {
 
               <button
                 type="submit"
+                disabled={loading}
                 className="w-full mt-2 bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white rounded-lg py-2 font-medium hover:opacity-90 transition"
               >
-                {isLogin ? "Entrar 🚀" : "Cadastrar ✨"}
+                {loading
+                  ? "Carregando..."
+                  : isLogin
+                  ? "Entrar 🚀"
+                  : "Cadastrar ✨"}
               </button>
             </form>
 

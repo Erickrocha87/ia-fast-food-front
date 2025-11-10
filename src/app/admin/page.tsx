@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Cog,
   Users,
@@ -14,12 +14,46 @@ import { Icon } from "@iconify/react";
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("geral");
 
+  // ======== Estados do Cardápio ========
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
   const stats = {
     liveOrders: 5,
     avgPrep: 12,
     revenue: 1250,
     newCustomers: 15,
   };
+
+  // ======== Buscar Itens do Cardápio ========
+  const fetchMenuItems = async () => {
+    try {
+      setLoading(true);
+      setErro(null);
+
+      const res = await fetch("http://localhost:1337/menu", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (!res.ok) throw new Error("Erro ao buscar cardápio");
+
+      const data = await res.json();
+      setMenuItems(data);
+    } catch (err: any) {
+      setErro(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "cardapio") {
+      fetchMenuItems();
+    }
+  }, [activeTab]);
 
   return (
     <section className="min-h-screen bg-gradient-to-b from-[#f9f9ff] to-[#f2f6ff] p-8 text-gray-800">
@@ -56,11 +90,10 @@ export default function AdminDashboard() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow-md"
-                : "text-gray-600 hover:text-[#6b46ff]"
-            }`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all ${activeTab === tab.id
+              ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow-md"
+              : "text-gray-600 hover:text-[#6b46ff]"
+              }`}
           >
             {tab.icon}
             {tab.label}
@@ -108,16 +141,86 @@ export default function AdminDashboard() {
       {/* ==================== CARDÁPIO ==================== */}
       {activeTab === "cardapio" && (
         <div>
-          <h2 className="text-lg font-semibold text-[#6d4aff] mb-4">Cardápio Digital</h2>
-          <div className="grid sm:grid-cols-3 gap-5">
-            <MiniCard label="Total de Itens" value="142 produtos" color="from-[#c084fc] to-[#818cf8]" />
-            <MiniCard label="Categorias" value="12 categorias" color="from-[#818cf8] to-[#60a5fa]" />
-            <MiniCard label="Itens Ativos" value="138 disponíveis" color="from-[#7b4fff] to-[#3b82f6]" />
+          <h2 className="text-lg font-semibold text-[#6d4aff] mb-6">Cardápio Digital</h2>
+
+          {/* Upload CSV */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
+            <button
+              onClick={() => document.getElementById("csvInput")?.click()}
+              className="flex items-center gap-2 bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white px-6 py-3 rounded-xl text-sm font-medium shadow-md hover:opacity-90 transition"
+            >
+              <Icon icon="fluent:document-arrow-up-24-regular" className="w-5 h-5" />
+              Importar CSV
+            </button>
+
+            <input
+              id="csvInput"
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append("file", file);
+
+                try {
+                  const res = await fetch("http://localhost:1337/csv/import", {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                      Authorization: `Bearer ${localStorage.getItem("token")}`,
+                    },
+                  });
+
+
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "Erro ao enviar CSV");
+
+                  alert(
+                    `✅ Cardápio importado com sucesso!\nItens importados: ${data.imported || 0}`
+                  );
+                  fetchMenuItems();
+                } catch (err: any) {
+                  alert(`❌ Falha na importação: ${err.message}`);
+                }
+              }}
+            />
           </div>
-          <button className="mt-6 bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white px-5 py-2 rounded-xl text-sm font-medium shadow-md hover:opacity-90 transition">
-            <Icon icon="fluent:food-24-regular" className="inline w-4 h-4 mr-1" />
-            Adicionar Item
-          </button>
+
+          {/* Lista de Itens */}
+          <div className="bg-white rounded-2xl border border-[#ececff] shadow-sm p-6">
+            <h3 className="text-base font-semibold text-[#4c33ff] mb-4 flex items-center gap-2">
+              <Icon icon="fluent:food-24-filled" className="w-5 h-5 text-[#6b46ff]" />
+              Itens do Cardápio
+            </h3>
+
+            {loading ? (
+              <p className="text-gray-500">Carregando cardápio...</p>
+            ) : erro ? (
+              <p className="text-red-500">{erro}</p>
+            ) : menuItems.length === 0 ? (
+              <p className="text-gray-400 italic">Nenhum item cadastrado ainda.</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {menuItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="border border-[#e5e0ff] rounded-xl p-4 bg-[#fafaff] hover:shadow-md transition"
+                  >
+                    <h4 className="font-medium text-[#4b38ff]">{item.name}</h4>
+                    {item.description && (
+                      <p className="text-sm text-gray-500 mt-1">{item.description}</p>
+                    )}
+                    <p className="text-sm font-semibold text-[#6d4aff] mt-2">
+                      R$ {item.price?.toFixed(2)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -192,19 +295,6 @@ function Card({ title, icon, value, subtitle }) {
   );
 }
 
-function MiniCard({ label, value, color }) {
-  return (
-    <div
-      className={`rounded-2xl bg-gradient-to-r ${color} text-white p-[1px] shadow-sm`}
-    >
-      <div className="bg-white text-gray-700 rounded-2xl p-4 text-center">
-        <h4 className="text-sm font-semibold text-[#6b46ff]">{label}</h4>
-        <p className="text-sm text-gray-600 mt-1">{value}</p>
-      </div>
-    </div>
-  );
-}
-
 function UserCard({ name, role, status }) {
   const active =
     status === "Ativo"
@@ -249,11 +339,7 @@ function ConfigCard({ title, subtitle, icon, fields, footer }) {
               <span className="text-sm text-gray-700">{f.label}</span>
               {f.type === "toggle" ? (
                 <div className="relative inline-block w-10 h-5">
-                  <input
-                    type="checkbox"
-                    className="opacity-0 w-0 h-0 peer"
-                    defaultChecked
-                  />
+                  <input type="checkbox" className="opacity-0 w-0 h-0 peer" defaultChecked />
                   <span className="absolute cursor-pointer inset-0 bg-gray-300 rounded-full peer-checked:bg-[#7b4fff] transition"></span>
                   <span className="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition peer-checked:translate-x-5"></span>
                 </div>

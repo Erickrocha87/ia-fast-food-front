@@ -1,23 +1,46 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
-import { useVoiceCommands } from "../hooks/useVoiceCommands";
+import { useVoiceCommands } from "@/app/hooks/useVoiceCommands";
 
 const categoriasMenu = ["Todos", "Pizzas", "Lanches", "Bebidas", "Sobremesas"];
-
-const itensMenuData = [
-  { id: 1, categoria: "Pizzas", nome: "Pizza Margherita", descricao: "Molho, mussarela e manjericão", preco: 45.9 },
-  { id: 2, categoria: "Pizzas", nome: "Pizza Calabresa", descricao: "Molho, mussarela e calabresa", preco: 48.9 },
-  { id: 3, categoria: "Lanches", nome: "Hambúrguer Artesanal", descricao: "180g de carne, queijo e molho especial", preco: 32.9 },
-  { id: 4, categoria: "Bebidas", nome: "Refrigerante Lata", descricao: "Coca-Cola, Guaraná ou Fanta", preco: 8.0 },
-];
 
 export default function CustomerOrderMenu() {
   const [categoriaSelecionada, setCategoriaSelecionada] = useState("Todos");
   const [itensCarrinho, setItensCarrinho] = useState<any[]>([]);
   const [ultimoComando, setUltimoComando] = useState("");
   const [busca, setBusca] = useState("");
+  const [itensMenu, setItensMenu] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // ======== Buscar cardápio ========
+  useEffect(() => {
+    const fetchMenu = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch("http://localhost:1337/menu", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || "Erro ao carregar cardápio");
+        }
+
+        const data = await res.json();
+        setItensMenu(data);
+      } catch (err: any) {
+        console.error("Erro ao buscar menu:", err);
+        setErro(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMenu();
+  }, []);
 
   // ======== Carrinho ========
   const adicionarAoCarrinho = (itemAdicionar: any) => {
@@ -25,7 +48,9 @@ export default function CustomerOrderMenu() {
       const existente = prev.find((i) => i.id === itemAdicionar.id);
       return existente
         ? prev.map((i) =>
-            i.id === itemAdicionar.id ? { ...i, quantidade: i.quantidade + 1 } : i
+            i.id === itemAdicionar.id
+              ? { ...i, quantidade: i.quantidade + 1 }
+              : i
           )
         : [...prev, { ...itemAdicionar, quantidade: 1 }];
     });
@@ -51,27 +76,26 @@ export default function CustomerOrderMenu() {
     );
 
   const subtotal = itensCarrinho.reduce(
-    (total, item) => total + item.preco * item.quantidade,
+    (total, item) => total + (item.price ?? 0) * item.quantidade,
     0
   );
-  const total = subtotal;
 
   const confirmarPedido = () => {
-    alert(`Pedido realizado com sucesso!\nTotal: R$ ${total.toFixed(2)}`);
+    alert(`✅ Pedido realizado com sucesso!\nTotal: R$ ${subtotal.toFixed(2)}`);
     setItensCarrinho([]);
   };
 
   // ======== IA Voz ========
   useVoiceCommands(ultimoComando, {
     adicionar: (nomeItem: string) => {
-      const item = itensMenuData.find((i) =>
-        i.nome.toLowerCase().includes(nomeItem.toLowerCase())
+      const item = itensMenu.find((i) =>
+        (i.name || "").toLowerCase().includes(nomeItem.toLowerCase())
       );
       if (item) adicionarAoCarrinho(item);
     },
     remover: (nomeItem: string) => {
-      const item = itensMenuData.find((i) =>
-        i.nome.toLowerCase().includes(nomeItem.toLowerCase())
+      const item = itensMenu.find((i) =>
+        (i.name || "").toLowerCase().includes(nomeItem.toLowerCase())
       );
       if (item) removerDoCarrinho(item.id);
     },
@@ -79,10 +103,13 @@ export default function CustomerOrderMenu() {
   });
 
   // ======== Filtros ========
-  const itensFiltrados = itensMenuData.filter((item) => {
+  const itensFiltrados = itensMenu.filter((item) => {
     const matchCategoria =
-      categoriaSelecionada === "Todos" || item.categoria === categoriaSelecionada;
-    const matchBusca = item.nome.toLowerCase().includes(busca.toLowerCase());
+      categoriaSelecionada === "Todos" ||
+      item.categoria === categoriaSelecionada;
+    const matchBusca = (item.name || "")
+      .toLowerCase()
+      .includes(busca.toLowerCase());
     return matchCategoria && matchBusca;
   });
 
@@ -96,21 +123,9 @@ export default function CustomerOrderMenu() {
             <Icon icon="fluent:food-24-filled" className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-sm font-medium text-[#6b46ff]">
-              Fazer Pedido
-            </h1>
-            <p className="text-xs text-gray-500">Onde vai a mesa atual</p>
+            <h1 className="text-sm font-medium text-[#6b46ff]">Fazer Pedido</h1>
+            <p className="text-xs text-gray-500">Mesa atual</p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-3 mt-3 sm:mt-0">
-          <button
-            onClick={() => document.getElementById("mic-btn")?.click()}
-            className="flex items-center gap-2 bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white px-4 py-2 rounded-xl text-sm shadow hover:opacity-90"
-          >
-            <Icon icon="fluent:mic-24-filled" className="w-4 h-4" />
-            Falar
-          </button>
         </div>
       </header>
 
@@ -130,7 +145,6 @@ export default function CustomerOrderMenu() {
 
       {/* Conteúdo */}
       <main className="w-full max-w-7xl px-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Coluna Menu */}
         <section className="lg:col-span-2">
           {/* Categorias */}
           <div className="flex flex-wrap gap-2 mb-6">
@@ -150,34 +164,42 @@ export default function CustomerOrderMenu() {
           </div>
 
           {/* Itens */}
-          <div className="grid sm:grid-cols-2 gap-5">
-            {itensFiltrados.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white border border-[#e6e4ff] rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between"
-              >
-                <div>
-                  <h3 className="text-base font-semibold text-[#4338ca]">
-                    {item.nome}
-                  </h3>
-                  <p className="text-sm text-gray-500">{item.descricao}</p>
-                  <p className="font-semibold text-[#4b38ff] mt-2">
-                    R$ {item.preco.toFixed(2)}
-                  </p>
-                </div>
-                <button
-                  onClick={() => adicionarAoCarrinho(item)}
-                  className="mt-4 bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white px-4 py-2 rounded-xl text-sm font-medium shadow hover:opacity-90 transition"
+          {loading ? (
+            <p className="text-gray-500">Carregando cardápio...</p>
+          ) : erro ? (
+            <p className="text-red-500">Erro: {erro}</p>
+          ) : itensFiltrados.length === 0 ? (
+            <p className="text-gray-500">Nenhum item encontrado.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-5">
+              {itensFiltrados.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white border border-[#e6e4ff] rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between"
                 >
-                  <Icon
-                    icon="fluent:add-circle-24-filled"
-                    className="inline w-4 h-4 mr-1"
-                  />
-                  Adicionar
-                </button>
-              </div>
-            ))}
-          </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-[#4338ca]">
+                      {item.name || "Sem nome"}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {item.description || "Sem descrição"}
+                    </p>
+                    <p className="font-semibold text-[#4b38ff] mt-2">
+                      R$ {(item.price ?? 0).toFixed(2)}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => adicionarAoCarrinho(item)}
+                    className="mt-4 bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white px-4 py-2 rounded-xl text-sm font-medium shadow hover:opacity-90 transition"
+                  >
+                    <Icon icon="fluent:add-circle-24-filled" className="inline w-4 h-4 mr-1" />
+                    Adicionar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Carrinho */}
@@ -201,9 +223,11 @@ export default function CustomerOrderMenu() {
                   className="flex justify-between items-center bg-[#fafaff] border border-[#f0edff] rounded-xl px-3 py-2"
                 >
                   <div>
-                    <p className="font-medium text-[#4c33ff]">{item.nome}</p>
+                    <p className="font-medium text-[#4c33ff]">
+                      {item.name || "Item"}
+                    </p>
                     <span className="text-xs text-gray-500">
-                      R$ {item.preco.toFixed(2)} × {item.quantidade}
+                      R$ {(item.price ?? 0).toFixed(2)} × {item.quantidade}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -232,6 +256,7 @@ export default function CustomerOrderMenu() {
             </div>
           )}
 
+          {/* Total + botão confirmar */}
           <div className="border-t border-[#eeeaff] my-4"></div>
           <div className="space-y-1 text-sm text-gray-700">
             <div className="flex justify-between">
@@ -240,7 +265,7 @@ export default function CustomerOrderMenu() {
             </div>
             <div className="flex justify-between font-semibold text-[#4b38ff] text-base">
               <span>Total:</span>
-              <span>R$ {total.toFixed(2)}</span>
+              <span>R$ {subtotal.toFixed(2)}</span>
             </div>
           </div>
 
@@ -259,9 +284,9 @@ export default function CustomerOrderMenu() {
         </aside>
       </main>
 
-      {/* Assistente de Voz (oculto no botão Falar) */}
-      <div className="hidden">
-        <VoiceAssistant id="mic-btn" onTranscript={setUltimoComando} />
+      {/* 🔊 Assistente de voz fixo e funcional */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <VoiceAssistant onTranscript={setUltimoComando} />
       </div>
 
       <footer className="text-sm text-[#6b46ff] mt-10">

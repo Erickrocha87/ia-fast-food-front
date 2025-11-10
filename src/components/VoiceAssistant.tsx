@@ -1,141 +1,124 @@
 "use client";
-
-import React, { useState, useEffect, useRef } from "react";
-import dynamic from "next/dynamic";
-import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
-import { FaMicrophone, FaSpinner } from "react-icons/fa";
+import React, { useState } from "react";
+import { Icon } from "@iconify/react";
 
 interface VoiceAssistantProps {
   onTranscript: (text: string) => void;
 }
 
 export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ onTranscript }) => {
-  const [isClient, setIsClient] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const [status, setStatus] = useState("Clique no microfone para falar 🎙️");
 
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition,
-  } = useSpeechRecognition();
+  const handleListen = async () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-  // ✅ Só roda no cliente
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // 🚀 Quando o usuário para de falar
-  useEffect(() => {
-    if (!listening && transcript) {
-      handleCommand(transcript);
+    if (!SpeechRecognition) {
+      alert("Seu navegador não suporta reconhecimento de voz.");
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listening, transcript]);
 
-  const speak = (msg: string) => {
-    return new Promise<void>((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(msg);
-      utterance.lang = "pt-BR";
-      utterance.onend = () => resolve();
-      speechSynthesis.speak(utterance);
-    });
-  };
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pt-BR";
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-  const handleCommand = async (text: string) => {
-    setIsProcessing(true);
-    // onTranscript(text);
+    recognition.onstart = () => {
+      setIsListening(true);
+      setStatus("🎧 Ouvindo...");
+    };
 
-    try {
-      const chatResponse = await fetch("http://localhost:1337/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
-      });
+    recognition.onerror = (e: any) => {
+      console.error("Erro no reconhecimento:", e);
+      setIsListening(false);
+      setStatus("Erro no microfone");
+    };
 
-      if (!chatResponse.ok) throw new Error("Erro no backend /chat");
+    recognition.onend = () => {
+      setIsListening(false);
+      if (!isProcessing) setStatus("⏳ Processando...");
+    };
 
-      const chatData = await chatResponse.json();
-      //envia a resposta do chat pro TTS
-      const ttsResponse = await fetch("http://localhost:1337/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: chatData.responseMessage }),
-      });
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      console.log("🗣️ Fala detectada:", transcript);
+      onTranscript(transcript);
 
-      if (!ttsResponse.ok) {
-        throw new Error(`Erro na rota /api/tts: ${ttsResponse.statusText}`);
+      setIsProcessing(true);
+
+      try {
+        const token = localStorage.getItem("token");
+        const chatRes = await fetch("http://localhost:1337/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ message: transcript, tableNumber: "1" }),
+        });
+
+        const chatData = await chatRes.json();
+        const resposta = chatData.responseMessage ?? "Desculpe, não entendi.";
+
+        console.log("🤖 Resposta IA:", resposta);
+
+        // 🔊 Gera o áudio e toca
+        const ttsRes = await fetch("http://localhost:1337/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: resposta }),
+        });
+
+        if (!ttsRes.ok) {
+          console.error("Erro no TTS:", await ttsRes.text());
+          setStatus("⚠️ Erro ao gerar áudio");
+          setIsProcessing(false);
+          return;
+        }
+
+        const audioBlob = await ttsRes.blob();
+        console.log("🔊 Tipo de áudio recebido:", audioBlob.type, audioBlob.size);
+
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        audio.volume = 0.9;
+        await audio.play();
+
+        setStatus("✅ Pedido processado!");
+      } catch (error) {
+        console.error("❌ Erro geral:", error);
+        setStatus("Erro ao processar a fala.");
+      } finally {
+        setIsProcessing(false);
       }
+    };
 
-      const audioBlob = await ttsResponse.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-
-      //reproduz o áudio recebido
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.play();
-      }
-    } catch (error) {
-      console.error("Erro ao processar comando:", error);
-      await speak("Desculpe, houve um problema ao processar sua fala.");
-    } finally {
-      setIsProcessing(false);
-      resetTranscript();
-    }
+    recognition.start();
   };
-
-  const handleMicClick = () => {
-    if (listening) {
-      SpeechRecognition.stopListening();
-    } else {
-      resetTranscript();
-      SpeechRecognition.startListening({
-        continuous: false,
-        language: "pt-BR",
-      });
-    }
-  };
-
-  // Evita render SSR
-  if (!isClient) return null;
-
-  if (!browserSupportsSpeechRecognition) {
-    return <span>Seu navegador não suporta reconhecimento de voz.</span>;
-  }
 
   return (
-    <div className="flex flex-col items-center justify-center p-4">
+    <div className="flex flex-col items-center gap-2 fixed bottom-6 right-6 z-50">
       <button
-        onClick={handleMicClick}
+        onClick={handleListen}
         disabled={isProcessing}
-        className={`w-20 h-20 cursor-pointer rounded-full flex items-center justify-center transition-transform duration-300 ease-in-out
-          ${listening ? "bg-red-500 scale-110" : "bg-blue-500"}
-          ${
-            isProcessing
-              ? "bg-gray-400 cursor-not-allowed"
-              : "hover:bg-blue-600"
-          }`}
+        className={`rounded-full p-5 shadow-lg transition-all duration-300 ${
+          isListening
+            ? "bg-red-500 animate-pulse"
+            : "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6]"
+        } ${isProcessing ? "opacity-60 cursor-not-allowed" : ""}`}
       >
-        {isProcessing ? (
-          <FaSpinner className="text-white text-3xl animate-spin" />
-        ) : (
-          <FaMicrophone className="text-white text-3xl" />
-        )}
+        <Icon
+          icon={
+            isListening
+              ? "fluent:mic-off-24-filled"
+              : "fluent:mic-24-filled"
+          }
+          className="text-white w-7 h-7"
+        />
       </button>
-      <p className="mt-4 text-gray-600 h-6">
-        {listening
-          ? "Ouvindo..."
-          : isProcessing
-          ? "Processando..."
-          : transcript
-          ? `Você disse: ${transcript}`
-          : "Clique no microfone para falar"}
-      </p>
-      <audio ref={audioRef} hidden />
+      <p className="text-sm font-medium text-gray-700">{status}</p>
     </div>
   );
 };
-
-// ✅ Corrige SSR import
-export default dynamic(() => Promise.resolve(VoiceAssistant), { ssr: false });
