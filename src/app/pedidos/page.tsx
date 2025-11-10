@@ -15,7 +15,7 @@ export default function CustomerOrderMenu() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
-  // ======== Buscar cardápio ========
+  // Buscar cardápio
   useEffect(() => {
     const fetchMenu = async () => {
       try {
@@ -23,12 +23,10 @@ export default function CustomerOrderMenu() {
         const res = await fetch("http://localhost:1337/menu", {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-
         if (!res.ok) {
           const data = await res.json();
           throw new Error(data.message || "Erro ao carregar cardápio");
         }
-
         const data = await res.json();
         setItensMenu(data);
       } catch (err: any) {
@@ -38,21 +36,22 @@ export default function CustomerOrderMenu() {
         setLoading(false);
       }
     };
-
     fetchMenu();
   }, []);
 
-  // ======== Carrinho ========
+  // Carrinho + funções
   const adicionarAoCarrinho = (itemAdicionar: any) => {
     setItensCarrinho((prev) => {
       const existente = prev.find((i) => i.id === itemAdicionar.id);
-      return existente
-        ? prev.map((i) =>
-            i.id === itemAdicionar.id
-              ? { ...i, quantidade: i.quantidade + 1 }
-              : i
-          )
-        : [...prev, { ...itemAdicionar, quantidade: 1 }];
+      if (existente) {
+        return prev.map((i) =>
+          i.id === itemAdicionar.id
+            ? { ...i, quantidade: (i.quantidade || 1) + 1 }
+            : i
+        );
+      } else {
+        return [...prev, { ...itemAdicionar, quantidade: 1 }];
+      }
     });
   };
 
@@ -62,7 +61,9 @@ export default function CustomerOrderMenu() {
   const aumentarQuantidade = (id: number) =>
     setItensCarrinho((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, quantidade: item.quantidade + 1 } : item
+        item.id === id
+          ? { ...item, quantidade: item.quantidade + 1 }
+          : item
       )
     );
 
@@ -70,13 +71,15 @@ export default function CustomerOrderMenu() {
     setItensCarrinho((prev) =>
       prev
         .map((item) =>
-          item.id === id ? { ...item, quantidade: item.quantidade - 1 } : item
+          item.id === id
+            ? { ...item, quantidade: item.quantidade - 1 }
+            : item
         )
         .filter((item) => item.quantidade > 0)
     );
 
   const subtotal = itensCarrinho.reduce(
-    (total, item) => total + (item.price ?? 0) * item.quantidade,
+    (total, item) => total + (item.price ?? item.preco ?? 0) * item.quantidade,
     0
   );
 
@@ -85,35 +88,42 @@ export default function CustomerOrderMenu() {
     setItensCarrinho([]);
   };
 
-  // ======== IA Voz ========
+  // IA Voz
   useVoiceCommands(ultimoComando, {
     adicionar: (nomeItem: string) => {
       const item = itensMenu.find((i) =>
-        (i.name || "").toLowerCase().includes(nomeItem.toLowerCase())
+        (i.name || i.nome || "").toLowerCase().includes(nomeItem.toLowerCase())
       );
-      if (item) adicionarAoCarrinho(item);
+      if (item) {
+        adicionarAoCarrinho(item);
+      } else {
+        console.warn("Item não encontrado para adicionar:", nomeItem);
+      }
     },
     remover: (nomeItem: string) => {
       const item = itensMenu.find((i) =>
-        (i.name || "").toLowerCase().includes(nomeItem.toLowerCase())
+        (i.name || i.nome || "").toLowerCase().includes(nomeItem.toLowerCase())
       );
-      if (item) removerDoCarrinho(item.id);
+      if (item) {
+        removerDoCarrinho(item.id);
+      } else {
+        console.warn("Item não encontrado para remover:", nomeItem);
+      }
     },
     finalizar: confirmarPedido,
   });
 
-  // ======== Filtros ========
+  // Filtros
   const itensFiltrados = itensMenu.filter((item) => {
     const matchCategoria =
       categoriaSelecionada === "Todos" ||
       item.categoria === categoriaSelecionada;
-    const matchBusca = (item.name || "")
+    const matchBusca = (item.name || item.nome || "")
       .toLowerCase()
       .includes(busca.toLowerCase());
     return matchCategoria && matchBusca;
   });
 
-  // ======== Layout ========
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f9f8ff] to-[#eef1ff] text-gray-800 flex flex-col items-center py-8">
       {/* Cabeçalho */}
@@ -127,9 +137,17 @@ export default function CustomerOrderMenu() {
             <p className="text-xs text-gray-500">Mesa atual</p>
           </div>
         </div>
+        {/* Botão falar */}
+        <button
+          onClick={() => setUltimoComando("") /* ou outro trigger */}
+          className="flex items-center gap-2 bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white px-4 py-2 rounded-xl text-sm shadow hover:opacity-90"
+        >
+          <Icon icon="fluent:mic-24-filled" className="w-4 h-4" />
+          Falar
+        </button>
       </header>
 
-      {/* Barra de busca */}
+      {/* Busca */}
       <div className="w-full max-w-7xl px-6 mb-6">
         <div className="flex items-center bg-white rounded-xl shadow-sm border border-[#e6e4ff] px-4 py-2">
           <Icon icon="fluent:search-20-regular" className="text-[#6b46ff] w-5 h-5" />
@@ -179,13 +197,13 @@ export default function CustomerOrderMenu() {
                 >
                   <div>
                     <h3 className="text-base font-semibold text-[#4338ca]">
-                      {item.name || "Sem nome"}
+                      {item.name || item.nome || "Sem nome"}
                     </h3>
                     <p className="text-sm text-gray-500">
-                      {item.description || "Sem descrição"}
+                      {item.description || item.descricao || "Sem descrição"}
                     </p>
                     <p className="font-semibold text-[#4b38ff] mt-2">
-                      R$ {(item.price ?? 0).toFixed(2)}
+                      R$ {(item.price ?? item.preco ?? 0).toFixed(2)}
                     </p>
                   </div>
 
@@ -193,7 +211,10 @@ export default function CustomerOrderMenu() {
                     onClick={() => adicionarAoCarrinho(item)}
                     className="mt-4 bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white px-4 py-2 rounded-xl text-sm font-medium shadow hover:opacity-90 transition"
                   >
-                    <Icon icon="fluent:add-circle-24-filled" className="inline w-4 h-4 mr-1" />
+                    <Icon
+                      icon="fluent:add-circle-24-filled"
+                      className="inline w-4 h-4 mr-1"
+                    />
                     Adicionar
                   </button>
                 </div>
@@ -224,10 +245,10 @@ export default function CustomerOrderMenu() {
                 >
                   <div>
                     <p className="font-medium text-[#4c33ff]">
-                      {item.name || "Item"}
+                      {item.name || item.nome || "Item"}
                     </p>
                     <span className="text-xs text-gray-500">
-                      R$ {(item.price ?? 0).toFixed(2)} × {item.quantidade}
+                      R$ {(item.price ?? item.preco ?? 0).toFixed(2)} × {item.quantidade}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -256,7 +277,6 @@ export default function CustomerOrderMenu() {
             </div>
           )}
 
-          {/* Total + botão confirmar */}
           <div className="border-t border-[#eeeaff] my-4"></div>
           <div className="space-y-1 text-sm text-gray-700">
             <div className="flex justify-between">
@@ -284,7 +304,7 @@ export default function CustomerOrderMenu() {
         </aside>
       </main>
 
-      {/* 🔊 Assistente de voz fixo e funcional */}
+      {/* Assistente de voz */}
       <div className="fixed bottom-6 right-6 z-50">
         <VoiceAssistant onTranscript={setUltimoComando} />
       </div>
