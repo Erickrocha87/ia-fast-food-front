@@ -3,10 +3,13 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/Botao";
+import { TextInput } from "@/components/TextInput";
 
-const LoginCard = () => {
+const RegisterPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [restaurantName, setRestaurantName] = useState("");
+  const [restaurantType, setRestaurantType] = useState("");
   const router = useRouter();
 
   const handleLogin = (event: React.FormEvent) => {
@@ -44,14 +47,13 @@ const LoginCard = () => {
             <label htmlFor="email" className="sr-only">
               Email
             </label>
-            <input
+            <TextInput
               type="text"
               id="email"
               placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
           </div>
 
@@ -59,14 +61,13 @@ const LoginCard = () => {
             <label htmlFor="password" className="sr-only">
               Senha
             </label>
-            <input
+            <TextInput
               type="password"
               id="password"
               placeholder="Senha"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
           </div>
 
@@ -74,14 +75,13 @@ const LoginCard = () => {
             <label htmlFor="restaurantName" className="sr-only">
               Nome do Restaurante
             </label>
-            <input
+            <TextInput
               type="text"
-              id="email"
+              id="restaurantName"
               placeholder="Nome do Restaurante"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={restaurantName}
+              onChange={(e) => setRestaurantName(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
           </div>
 
@@ -89,24 +89,31 @@ const LoginCard = () => {
             <label htmlFor="restaurantType" className="sr-only">
               Tipo de Restaurante
             </label>
-            <input
+           <TextInput
               type="text"
               id="restaurantType"
               placeholder="Tipo de Restaurante"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={restaurantType}
+              onChange={(e) => setRestaurantType(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
           </div>
 
-          <Button label="Cadastrar-se" type="submit" onClick={() => router.push("/")}/>
+          <Button
+            label="Cadastrar-se"
+            type="submit"
+            onClick={() => router.push("/")}
+          />
 
-         <Button label="Login" type="button" onClick={() => router.push("/")}/>
+          <Button
+            label="Login"
+            type="button"
+            onClick={() => router.push("/")}
+          />
         </form>
       </div>
     </div>
   );
 };
 
-export default LoginCard;
+export default RegisterPage;

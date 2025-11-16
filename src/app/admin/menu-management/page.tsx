@@ -58,7 +58,7 @@ export default function MenuManagementPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">Menu Management</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-1">Gerenciamento de Menu</h1>
       <p className="text-gray-600 mb-6">
         Gerencie os itens, preços e descrições do cardápio.
       </p>

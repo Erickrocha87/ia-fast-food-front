@@ -1,141 +1,201 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { FaMicrophone, FaSpinner } from "react-icons/fa";
 
-interface VoiceAssistantProps {
-  onTranscript: (text: string) => void;
-}
+const WS_URL = "ws://localhost:1337/realtime/12";
 
-export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ onTranscript }) => {
-  const [isClient, setIsClient] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
+export function ServeAIRealtimeAssistant() {
+  const [isConnected, setIsConnected] = useState(false);
+  const [isTalking, setIsTalking] = useState(false);
+  const [partialText, setPartialText] = useState("");
 
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition,
-  } = useSpeechRecognition();
+  const ws = useRef<WebSocket | null>(null);
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const audioPlayer = useRef<HTMLAudioElement>(null);
 
-  // ✅ Só roda no cliente
+  // ========================================================
+  // WEBSOCKET
+  // ========================================================
   useEffect(() => {
-    setIsClient(true);
+    const socket = new WebSocket(WS_URL);
+    ws.current = socket;
+    socket.binaryType = "arraybuffer";
+
+    socket.onopen = () => {
+      console.log("WS conectado");
+      setIsConnected(true);
+    };
+
+    socket.onclose = () => {
+      console.log("WS fechado");
+      setIsConnected(false);
+    };
+
+    socket.onmessage = (event) => handleServerMessage(event.data);
+
+    return () => socket.close();
   }, []);
 
-  // 🚀 Quando o usuário para de falar
-  useEffect(() => {
-    if (!listening && transcript) {
-      handleCommand(transcript);
+  // ========================================================
+  // RECEBENDO DO SERVIDOR
+  // ========================================================
+  function handleServerMessage(raw: any) {
+    if (raw instanceof ArrayBuffer) {
+      playAudio(raw);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listening, transcript]);
-
-  const speak = (msg: string) => {
-    return new Promise<void>((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(msg);
-      utterance.lang = "pt-BR";
-      utterance.onend = () => resolve();
-      speechSynthesis.speak(utterance);
-    });
-  };
-
-  const handleCommand = async (text: string) => {
-    setIsProcessing(true);
-    // onTranscript(text);
 
     try {
-      const chatResponse = await fetch("http://localhost:1337/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
-      });
+      const msg = JSON.parse(raw);
 
-      if (!chatResponse.ok) throw new Error("Erro no backend /chat");
-
-      const chatData = await chatResponse.json();
-      //envia a resposta do chat pro TTS
-      const ttsResponse = await fetch("http://localhost:1337/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: chatData.responseMessage }),
-      });
-
-      if (!ttsResponse.ok) {
-        throw new Error(`Erro na rota /api/tts: ${ttsResponse.statusText}`);
+      if (msg.type === "assistant_text") {
+        setPartialText(msg.text);
       }
-
-      const audioBlob = await ttsResponse.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-
-      //reproduz o áudio recebido
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.play();
-      }
-    } catch (error) {
-      console.error("Erro ao processar comando:", error);
-      await speak("Desculpe, houve um problema ao processar sua fala.");
-    } finally {
-      setIsProcessing(false);
-      resetTranscript();
+    } catch {
+      console.log("Mensagem não JSON.");
     }
-  };
-
-  const handleMicClick = () => {
-    if (listening) {
-      SpeechRecognition.stopListening();
-    } else {
-      resetTranscript();
-      SpeechRecognition.startListening({
-        continuous: false,
-        language: "pt-BR",
-      });
-    }
-  };
-
-  // Evita render SSR
-  if (!isClient) return null;
-
-  if (!browserSupportsSpeechRecognition) {
-    return <span>Seu navegador não suporta reconhecimento de voz.</span>;
   }
 
+  function playAudio(buffer: ArrayBuffer) {
+    const blob = new Blob([buffer], { type: "audio/mpeg" });
+    const url = URL.createObjectURL(blob);
+
+    if (audioPlayer.current) {
+      audioPlayer.current.src = url;
+      audioPlayer.current.play();
+    }
+  }
+
+  // ========================================================
+  // GRAVAR ÁUDIO
+  // ========================================================
+  const startRecording = async () => {
+    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
+
+    setIsTalking(true);
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    // === AUDIO PROCESSING RAW (para medir volume) ===
+    const audioCtx = new AudioContext();
+    const source = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
+
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+
+    let speaking = false;
+
+    let lastSpeech = Date.now();
+
+    const detectSpeech = () => {
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteTimeDomainData(data);
+
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      speaking = rms > 0.02;
+
+      if (speaking) {
+        lastSpeech = Date.now();
+      } else {
+        if (Date.now() - lastSpeech > 700) {
+          // 0.7s de silêncio
+          console.log("⛔ AUTO STOP pelo silêncio");
+          stopRecording();
+          return; // parar o loop
+        }
+      }
+
+      requestAnimationFrame(detectSpeech);
+    };
+    detectSpeech();
+
+    // === MEDIA RECORDER (para enviar áudio real ao OpenAI) ===
+    const rec = new MediaRecorder(stream, {
+      mimeType: "audio/webm;codecs=opus",
+      audioBitsPerSecond: 48000,
+    });
+
+    rec.ondataavailable = async (e) => {
+      if (!speaking) return; // 🔥 IGNORA SILÊNCIO!
+
+      const base64 = await blobToBase64(e.data);
+
+      ws.current?.send(
+        JSON.stringify({
+          type: "user_audio_chunk",
+          audio: base64,
+        })
+      );
+    };
+
+    mediaRecorder.current = rec;
+
+    rec.start(200);
+  };
+
+  const stopRecording = () => {
+    setIsTalking(false);
+
+    ws.current?.send(
+      JSON.stringify({
+        type: "user_audio_end",
+      })
+    );
+
+    mediaRecorder.current?.stop();
+  };
+
+  function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ========================================================
+  // UI
+  // ========================================================
   return (
-    <div className="flex flex-col items-center justify-center p-4">
+    <div className="flex flex-col items-center justify-center p-6">
       <button
-        onClick={handleMicClick}
-        disabled={isProcessing}
-        className={`w-20 h-20 cursor-pointer rounded-full flex items-center justify-center transition-transform duration-300 ease-in-out
-          ${listening ? "bg-red-500 scale-110" : "bg-blue-500"}
+        onClick={() => (isTalking ? stopRecording() : startRecording())}
+        disabled={!isConnected}
+        className={`w-20 h-20 rounded-full flex items-center justify-center transition text-white
           ${
-            isProcessing
-              ? "bg-gray-400 cursor-not-allowed"
-              : "hover:bg-blue-600"
-          }`}
+            isTalking ? "bg-red-500 scale-110" : "bg-blue-500 hover:bg-blue-600"
+          }
+          ${!isConnected && "bg-gray-500"}
+        `}
       >
-        {isProcessing ? (
-          <FaSpinner className="text-white text-3xl animate-spin" />
+        {isTalking ? (
+          <FaSpinner className="animate-spin text-3xl" />
         ) : (
-          <FaMicrophone className="text-white text-3xl" />
+          <FaMicrophone className="text-3xl" />
         )}
       </button>
-      <p className="mt-4 text-gray-600 h-6">
-        {listening
-          ? "Ouvindo..."
-          : isProcessing
-          ? "Processando..."
-          : transcript
-          ? `Você disse: ${transcript}`
-          : "Clique no microfone para falar"}
+
+      <p className="mt-4 text-gray-700 h-6 text-center">
+        {isConnected
+          ? isTalking
+            ? "Ouvindo..."
+            : partialText || "Clique para falar"
+          : "Conectando..."}
       </p>
-      <audio ref={audioRef} hidden />
+
+      <audio ref={audioPlayer} hidden />
     </div>
   );
-};
+}
 
-// ✅ Corrige SSR import
-export default dynamic(() => Promise.resolve(VoiceAssistant), { ssr: false });
+export default dynamic(() => Promise.resolve(ServeAIRealtimeAssistant), {
+  ssr: false,
+});
