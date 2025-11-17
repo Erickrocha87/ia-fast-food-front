@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { useVoiceCommands } from "@/app/hooks/useVoiceCommands";
+import ServeAIMicrophone from "@/components/ServeAiMicrophone";
 
 const categoriasMenu = ["Todos", "Pizzas", "Lanches", "Bebidas", "Sobremesas"];
 
@@ -138,13 +139,7 @@ export default function CustomerOrderMenu() {
           </div>
         </div>
         {/* Botão falar */}
-        <button
-          onClick={() => setUltimoComando("") /* ou outro trigger */}
-          className="flex items-center gap-2 bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white px-4 py-2 rounded-xl text-sm shadow hover:opacity-90"
-        >
-          <Icon icon="fluent:mic-24-filled" className="w-4 h-4" />
-          Falar
-        </button>
+        <ServeAIMicrophone />
       </header>
 
       {/* Busca */}

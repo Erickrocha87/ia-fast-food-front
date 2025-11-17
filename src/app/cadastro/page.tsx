@@ -11,9 +11,7 @@ const LoginCard = () => {
 
   const handleLogin = (event: React.FormEvent) => {
     event.preventDefault();
-    setTimeout(() => {
       router.push("/home");
-    }, 1500);
   };
 
   return (

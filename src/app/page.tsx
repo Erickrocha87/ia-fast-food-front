@@ -39,6 +39,8 @@ export default function LoginPage() {
         body: JSON.stringify(payload),
       });
 
+      console.log(url);
+      console.log(res);
       const data = await res.json();
 
       if (!res.ok) {
