@@ -11,7 +11,7 @@ const LoginCard = () => {
 
   const handleLogin = (event: React.FormEvent) => {
     event.preventDefault();
-      router.push("/home");
+      router.push("/planos");
   };
 
   return (

@@ -52,7 +52,7 @@ export default function LoginPage() {
       if (isLogin) {
         // Guardar token JWT localmente
         localStorage.setItem("token", data.token);
-        router.push("/admin"); // redirecionar para dashboard
+        router.push("/planos"); // redirecionar para dashboard
       } else {
         alert("Conta criada com sucesso! Faça login agora.");
         setIsLogin(true);

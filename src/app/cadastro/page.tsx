@@ -5,18 +5,39 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/Botao";
 
 const LoginCard = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const router = useRouter();
 
-  const handleLogin = (event: React.FormEvent) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [restaurantName, setRestaurantName] = useState("");
+  const [restaurantType, setRestaurantType] = useState("");
+
+  const handleRegister = async (event: React.FormEvent) => {
     event.preventDefault();
-      router.push("/home");
+
+    try {
+
+      // 👉 Aqui você vai chamar o backend futuramente:
+      // await api.post("/auth/register", {
+      //   email,
+      //   password,
+      //   restaurantName,
+      //   restaurantType,
+      // });
+
+      // 👉 Depois que o usuário se cadastra, ele deve logar:
+      router.push("/"); // voltar para a tela de login
+
+    } catch (error) {
+      console.log("Erro ao cadastrar:", error);
+    }
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
       <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-md text-center">
+        
+        {/* LOGO */}
         <div className="flex justify-center mb-2">
           <Image
             src="/serveai-logo.png"
@@ -28,79 +49,66 @@ const LoginCard = () => {
           />
         </div>
 
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            Crie sua conta
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Preencha os dados abaixo para criar sua conta.
-          </p>
-        </div>
+        {/* TÍTULO */}
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+          Crie sua conta
+        </h2>
+        <p className="text-gray-600 mb-6">
+          Preencha os dados abaixo para criar sua conta.
+        </p>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label htmlFor="email" className="sr-only">
-              Email
-            </label>
-            <input
-              type="text"
-              id="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-            />
-          </div>
+        {/* FORM */}
+        <form onSubmit={handleRegister} className="space-y-6">
+          
+          {/* Email */}
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+          />
 
-          <div>
-            <label htmlFor="password" className="sr-only">
-              Senha
-            </label>
-            <input
-              type="password"
-              id="password"
-              placeholder="Senha"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-            />
-          </div>
+          {/* Senha */}
+          <input
+            type="password"
+            placeholder="Senha"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+          />
 
-          <div>
-            <label htmlFor="restaurantName" className="sr-only">
-              Nome do Restaurante
-            </label>
-            <input
-              type="text"
-              id="email"
-              placeholder="Nome do Restaurante"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-            />
-          </div>
+          {/* Nome do Restaurante */}
+          <input
+            type="text"
+            placeholder="Nome do Restaurante"
+            value={restaurantName}
+            onChange={(e) => setRestaurantName(e.target.value)}
+            required
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+          />
 
-          <div>
-            <label htmlFor="restaurantType" className="sr-only">
-              Tipo de Restaurante
-            </label>
-            <input
-              type="text"
-              id="restaurantType"
-              placeholder="Tipo de Restaurante"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-            />
-          </div>
+          {/* Tipo de Restaurante */}
+          <input
+            type="text"
+            placeholder="Tipo de Restaurante"
+            value={restaurantType}
+            onChange={(e) => setRestaurantType(e.target.value)}
+            required
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+          />
 
-          <Button label="Cadastrar-se" type="submit" onClick={() => router.push("/")}/>
+          {/* Botão Cadastrar */}
+          <Button label="Cadastrar-se" type="submit" />
 
-         <Button label="Login" type="button" onClick={() => router.push("/")}/>
+          {/* Botão Login */}
+          <Button
+            label="Login"
+            type="button"
+            onClick={() => router.push("/")}
+          />
         </form>
       </div>
     </div>
