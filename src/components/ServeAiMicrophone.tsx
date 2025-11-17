@@ -1,144 +1,243 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 
-// [CORREÇÃO] Apontar para o seu backend na porta 1337
-const BACKEND_URL = "http://localhost:1337";
 
-export default function ServeAIMicrophone() {
-  // --- Estado do React ---
-  const [status, setStatus] = useState("idle"); // idle, preparing, listening
-  const [transcript, setTranscript] = useState("(fala do cliente → texto)");
-
-  // --- Refs (para valores que não disparam renderização) ---
+export default function ServeAIRealtimeVoice({ tableNumber = "12" }) {
   const pc = useRef<RTCPeerConnection | null>(null);
-  const dataChannel = useRef<RTCDataChannel | null>(null);
-  const micStream = useRef<MediaStream | null>(null);
-  const audioPlayer = useRef<HTMLAudioElement | null>(null);
-  const transcriptBuffer = useRef(""); // Buffer para transcrição
+  const dc = useRef<RTCDataChannel | null>(null);
+  const mic = useRef<MediaStream | null>(null);
 
-  // --- 1) Utilitários ---
-  const send = (event: any) => {
-    if (dataChannel.current?.readyState === "open") {
-      dataChannel.current.send(JSON.stringify(event));
-    }
-  };
+  const [status, setStatus] = useState<"Clique para falar" | "Conectando" | "Escutando">(
+    "Clique para falar"
+  );
 
-  // --- 2) Tools (Implementação) ---
-  // Deixei uma tool de exemplo, pois o código de 'tool_call' é necessário
-  const tools = {
-    get_order_summary: () => {
-      console.log("[TOOL] get_order_summary chamada");
-      return { items: [], total: 0 };
-    },
-  };
+  const [menu, setMenu] = useState<any[]>([]);
 
-  // --- 2b) Tools (Definição/Schema) ---
-  const getSystemInstructions = () => {
-    return "Você é um assistente de voz. Fale em português do Brasil.";
-  };
+  useEffect(() => {
+    fetch("http://localhost:1337/menu")
+      .then((r) => r.json())
+      .then((data) => {
+        setMenu(data);
+        console.log("🍔 MENU CARREGADO:", data);
+      })
+      .catch((err) => console.error("Erro menu:", err));
+  }, []);
 
-  const toolDefs = [
-    {
-      type: "function",
-      name: "get_order_summary",
-      description: "Return a summary of the order with total",
-      parameters: { type: "object", properties: {} },
-    },
-  ];
+  function buildSystemPrompt() {
+    return `
+Você é o ATENDENTE VIRTUAL do restaurante. 
+Fale sempre em português do Brasil. Seja educado, rápido e objetivo.
 
-  // --- 4) Realtime WebRTC: start/stop ---
-  const start = async () => {
-    setStatus("preparing…");
+⚠️ Limites rígidos:
+- Você só fala sobre pedidos, cardápio, mesa e restaurante.
+- Se perguntarem qualquer coisa fora disso, responda:
+  "Sou o atendente virtual do restaurante e só posso ajudar com cardápio e pedidos."
 
-    // 1) Pega token efêmero do NOSSO backend
-    // [CORREÇÃO] Usando a URL completa do backend
-    const token = await fetch(`${BACKEND_URL}/session`).then((r) => r.json());
-    if (token.error) {
-      alert(`Erro ao pegar token: ${token.error}`);
-      setStatus("idle");
+⚡ Prioridade máxima: Você NUNCA pode inventar itens, valores ou ofertas.
+⚡ Você só pode usar itens do cardápio abaixo:
+${JSON.stringify(menu, null, 2)}
+
+===================================================
+REGRAS DE AÇÃO (SIGA EXATAMENTE NESTA ORDEM)
+===================================================
+
+1) Identifique a intenção do cliente:
+   - adicionar item → use add_to_order
+   - remover item → use remove_from_order
+   - ver total/resumo → use get_order_summary
+   - ver opções → use list_menu_items
+   - mais de um item pedido → trate UM por vez
+
+2) Antes de chamar qualquer tool, fale UMA frase curta:
+   - "Claro, vou adicionar."
+   - "Perfeito, removendo."
+   - "Um instante, vou verificar."
+   - "Vou te mostrar."
+
+3) Depois dessa frase, chame EXATAMENTE 1 tool_call.
+   Nunca chame 2 tools no mesmo turno.
+
+4) Quando receber o resultado da tool_call, responda SEMPRE:
+   - confirme a ação realizada
+   - descreva o que foi resolvido
+   - ofereça ajuda extra
+
+5) Quando um pedido inclui 2 itens na mesma frase:
+   - adicione o primeiro item normalmente
+   - depois PERGUNTE:
+     "Você também quer que eu adicione <ITEM 2>?"
+   - só adicione o segundo item se o cliente confirmar
+
+6) Nunca sugira itens. Nunca complete pedidos automaticamente.
+
+7) Se não tiver certeza de qual item o cliente quer:
+   PERGUNTE antes de executar qualquer tool.
+
+8) Nunca diga “vou verificar” sem responder depois do tool_output.
+
+===================================================
+EXEMPLOS CURTOS (SEMPRE SIGA ESTE ESTILO)
+===================================================
+
+Cliente: "Quero um brownie."
+Você:
+  "Claro, vou adicionar."
+  [tool add_to_order]
+  "Prontinho, adicionei 1 brownie. Posso ajudar em algo mais?"
+
+Cliente: "Quero um hambúrguer e um refrigerante."
+Você:
+  "Claro, vou adicionar o hambúrguer."
+  [tool para o hambúrguer]
+  "Adicionei o hambúrguer. Você também quer 1 refrigerante?"
+
+Cliente: "Qual o total?"
+Você:
+  "Um instante, vou verificar."
+  [tool get_order_summary]
+  "O total é R$ X. Deseja algo mais?"
+    `;
+  }
+
+  async function startVoice() {
+    if (status !== "Clique para falar") {
+      stopVoice();
       return;
     }
 
-    // 2) Cria conexão WebRTC
-    const peerConnection = new RTCPeerConnection();
-    pc.current = peerConnection;
+    setStatus("Conectando");
 
-    const dc = peerConnection.createDataChannel("oai-events");
-    dataChannel.current = dc;
-    dc.onopen = () => {
-      setStatus("listening");
-      console.log("IA está escutando o áudio!");
-      // Atualiza sessão com instruções e tools
+    const session = await fetch("http://localhost:1337/session").then((r) =>
+      r.json()
+    );
+
+    pc.current = new RTCPeerConnection();
+    dc.current = pc.current.createDataChannel("oai-events");
+
+    dc.current.onopen = () => {
+      console.log("🟢 Canal WebRTC aberto!");
+      setStatus("Escutando");
+
       send({
         type: "session.update",
         session: {
-          instructions: getSystemInstructions(),
-          tools: toolDefs,
+          instructions: buildSystemPrompt(),
+          tools: [
+            {
+              type: "function",
+              name: "add_to_order",
+              description: "Adiciona item ao pedido",
+              parameters: {
+                type: "object",
+                properties: {
+                  tableNumber: { type: "string" },
+                  menuItemId: { type: "number" },
+                  quantity: { type: "number" },
+                },
+                required: ["tableNumber", "menuItemId"],
+              },
+            },
+            {
+              type: "function",
+              name: "remove_from_order",
+              description: "Remove item do pedido",
+              parameters: {
+                type: "object",
+                properties: {
+                  tableNumber: { type: "string" },
+                  menuItemId: { type: "number" },
+                  quantity: { type: "number" },
+                },
+                required: ["tableNumber", "menuItemId"],
+              },
+            },
+            {
+              type: "function",
+              name: "get_order_summary",
+              description: "Resumo do pedido",
+              parameters: {
+                type: "object",
+                properties: {
+                  tableNumber: { type: "string" },
+                },
+                required: ["tableNumber"],
+              },
+            },
+            {
+              type: "function",
+              name: "list_menu_items",
+              description: "Lista itens do cardápio",
+              parameters: {
+                type: "object",
+                properties: { query: { type: "string" } },
+              },
+            },
+          ],
         },
       });
-      send({ type: "input_audio_buffer.commit" });
+
       send({
         type: "response.create",
         response: {
-          instructions: "Converse em português do Brasil sempre.",
           modalities: ["audio"],
+          continue_after_tool: true,
         },
       });
     };
-    dc.onmessage = onEventFromModel;
 
-    // Áudio remoto (voz do modelo)
-    if (!audioPlayer.current) {
-      audioPlayer.current = new Audio();
-      audioPlayer.current.autoplay = true;
-    }
-    peerConnection.ontrack = (e) => {
-      if (audioPlayer.current) {
-        audioPlayer.current.srcObject = e.streams[0];
-      }
+    dc.current.onmessage = (msg) => onEvent(msg);
+
+    const audio = new Audio();
+    audio.autoplay = true;
+    pc.current.ontrack = (ev) => {
+      audio.srcObject = ev.streams[0];
     };
 
-    // Microfone local
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    micStream.current = stream;
-    stream.getTracks().forEach((t) => peerConnection.addTrack(t, stream));
+    mic.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mic.current
+      .getTracks()
+      .forEach((t) => pc.current!.addTrack(t, mic.current!));
 
-    // 3) Troca SDP com OpenAI
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
+    const offer = await pc.current.createOffer();
+    await pc.current.setLocalDescription(offer);
 
-    const sdpResponse = await fetch(
+    const r = await fetch(
       "https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview",
       {
         method: "POST",
         body: offer.sdp,
         headers: {
-          Authorization: `Bearer ${token.client_secret.value}`,
+          Authorization: `Bearer ${session.client_secret.value}`,
           "Content-Type": "application/sdp",
         },
       }
     );
-    const answer = { type: "answer", sdp: await sdpResponse.text() };
-    await peerConnection.setRemoteDescription(
-      answer as RTCSessionDescriptionInit
-    );
-  };
+    const answerSdp = await r.text();
 
-  const stop = () => {
+    await pc.current.setRemoteDescription({
+      type: "answer",
+      sdp: answerSdp,
+    });
+  }
+
+  function stopVoice() {
+    setStatus("Clique para falar");
     try {
-      dataChannel.current?.close();
-    } catch (e) {}
-    try {
+      dc.current?.close();
       pc.current?.close();
-    } catch (e) {}
-    micStream.current?.getTracks().forEach((t) => t.stop());
-    setStatus("idle");
-  };
+      mic.current?.getTracks().forEach((t) => t.stop());
+    } catch {}
+  }
 
-  // --- 5) Event loop Realtime ---
-  const onEventFromModel = (msg: MessageEvent) => {
+  function send(obj: any) {
+    if (dc.current?.readyState === "open") {
+      dc.current.send(JSON.stringify(obj));
+    }
+  }
+
+  async function onEvent(msg: MessageEvent) {
     let ev;
     try {
       ev = JSON.parse(msg.data);
@@ -146,82 +245,89 @@ export default function ServeAIMicrophone() {
       return;
     }
 
-    // Transcrição
-    if (ev.type === "response.audio_transcript.delta" && ev.delta) {
-      transcriptBuffer.current += ev.delta;
-      setTranscript(transcriptBuffer.current);
-    }
-    if (ev.type === "response.audio_transcript.done" && ev.transcript) {
-      setTranscript(ev.transcript);
-      transcriptBuffer.current = "";
+    console.log("📩 EVENTO IA:", ev);
+
+    if (
+      ev.type === "response.output_item.done" &&
+      ev.item?.type === "output_text"
+    ) {
+      console.log("🗣 IA DISSE:", ev.item.text);
     }
 
-    // Tool calling
     if (
       ev.type === "response.output_item.done" &&
       ev.item?.type === "function_call"
     ) {
+      const toolName = ev.item.name;
       let args = ev.item.arguments;
+
       if (typeof args === "string") {
         try {
           args = JSON.parse(args);
-        } catch {
-          args = {};
-        }
+        } catch {}
       }
 
-      console.log("[IA] Chamou", ev.item.name, args);
-      const name = ev.item.name as keyof typeof tools;
-      const impl = tools[name];
-      let toolResult = { ok: false, error: "unknown tool" };
+      args.tableNumber = tableNumber;
 
-      try {
-        toolResult = impl ? (impl as Function)(args || {}) : toolResult;
-      } catch (e: any) {
-        toolResult = { ok: false, error: e.message };
-      }
+      console.log("🛠 Executando tool:", toolName, args);
 
-      // Retorna a saída da tool
+      const toolResponse = await fetch("http://localhost:1337/tool-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: toolName, args }),
+      }).then((r) => r.json());
+
+      const toolText =
+        toolResponse?.message ||
+        toolResponse?.result?.message ||
+        JSON.stringify(toolResponse?.result || toolResponse);
+
       send({
         type: "tool_output.create",
         tool_output: {
           tool_call_id: ev.item.id,
-          content: [{ type: "output_text", text: JSON.stringify(toolResult) }],
+          content: [{ type: "output_text", text: toolText }],
         },
       });
 
-      // Diga ao modelo para continuar (em áudio)
-      send({ type: "response.create", response: { modalities: ["audio"] } });
+      send({
+        type: "response.create",
+        response: {
+          modalities: ["audio"],
+          continue_after_tool: true,
+        },
+      });
     }
-  };
-
-  // --- 6) UI (JSX) ---
-  const isRecording = status === "listening" || status === "preparing";
+  }
 
   return (
-    <div className="flex flex-col gap-4 p-4 max-w-md mx-auto">
-      <div className="flex justify-between items-center">
-        <h1 className="text-xl font-bold">WebRTC Audio</h1>
-        <div className="bg-gray-200 text-gray-700 text-sm px-3 py-1 rounded-full">
-          {status}
-        </div>
-      </div>
-
+    <div className="flex flex-col items-center gap-4 p-4">
       <button
-        onClick={isRecording ? stop : start}
-        className={`px-4 py-2 rounded-lg text-white font-bold flex items-center justify-center gap-2 ${
-          isRecording
-            ? "bg-red-600 hover:bg-red-700"
-            : "bg-blue-600 hover:bg-blue-700"
-        }`}
+        onClick={status === "Clique para falar" ? startVoice : stopVoice}
+        className={`flex items-center gap-2 bg-gradient-to-r 
+    ${
+      status === "Clique para falar"
+        ? "from-[#8b5cf6] to-[#3b82f6]"
+        : "from-red-500 to-red-700"
+    }
+    text-white px-4 py-2 rounded-xl text-sm shadow hover:opacity-90 transition
+  `}
       >
-        <Icon icon="fluent:mic-24-filled" />
-        {isRecording ? "Parar Gravação" : "Iniciar Gravação"}
+        {status === "Clique para falar" ? (
+          <>
+            <Icon icon="fluent:mic-24-filled" className="w-4 h-4" />
+            Falar
+          </>
+        ) : (
+          <>
+            <Icon icon="fluent:mic-off-24-filled" className="w-4 h-4" />
+            Parar
+          </>
+        )}
       </button>
 
-      <div className="border border-gray-300 rounded-xl p-4 min-h-[100px]">
-        <h3 className="font-bold text-lg mb-2">Transcrição</h3>
-        <div className="text-gray-700 whitespace-pre-wrap">{transcript}</div>
+      <div className="text-sm text-gray-600">
+        Status: <b>{status}</b>
       </div>
     </div>
   );
