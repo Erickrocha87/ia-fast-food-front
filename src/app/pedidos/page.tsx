@@ -299,11 +299,6 @@ export default function CustomerOrderMenu() {
         </aside>
       </main>
 
-      {/* Assistente de voz */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <VoiceAssistant onTranscript={setUltimoComando} />
-      </div>
-
       <footer className="text-sm text-[#6b46ff] mt-10">
         Desenvolvido por <span className="font-semibold">ServeAI</span>
       </footer>
