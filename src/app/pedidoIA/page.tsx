@@ -19,7 +19,7 @@ export default function PedidoIA() {
     // 🔥 1) RECEBER PEDIDOS DA IA (agora sincronizado com o cardápio real)
     // ====================================================================================
     useEffect(() => {
-        eventBus.on("pedido:add", (itemIA) => {
+        const handleAdd = (itemIA) => {
             const menuItem = itensMenu.find((m) => m.id === itemIA.id);
             if (!menuItem) return;
 
@@ -29,9 +29,9 @@ export default function PedidoIA() {
                 price: menuItem.price,
                 quantidade: itemIA.quantidade ?? 1,
             });
-        });
+        };
 
-        eventBus.on("pedido:remove", (itemIA) => {
+        const handleRemove = (itemIA) => {
             setItensCarrinho((prev) =>
                 prev
                     .map((item) =>
@@ -41,11 +41,20 @@ export default function PedidoIA() {
                     )
                     .filter((item) => item.quantidade > 0)
             );
-        });
+        };
 
-        eventBus.on("pedido:clear", () => setItensCarrinho([]));
-    }, [itensMenu]);
+        const handleClear = () => setItensCarrinho([]);
 
+        eventBus.on("pedido:add", handleAdd);
+        eventBus.on("pedido:remove", handleRemove);
+        eventBus.on("pedido:clear", handleClear);
+
+        return () => {
+            eventBus.off("pedido:add", handleAdd);
+            eventBus.off("pedido:remove", handleRemove);
+            eventBus.off("pedido:clear", handleClear);
+        };
+    }, [itensMenu]); 
 
     // ====================================================================================
     // 📌 2) CARREGAR CARDÁPIO DO BACKEND
@@ -212,21 +221,6 @@ export default function PedidoIA() {
                             </div>
                         </div>
 
-                        {/* CATEGORIAS */}
-                        <div className="flex flex-wrap gap-2 mb-6">
-                            {categoriasMenu.map((categoria) => (
-                                <button
-                                    key={categoria}
-                                    onClick={() => setCategoriaSelecionada(categoria)}
-                                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${categoriaSelecionada === categoria
-                                        ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow-md"
-                                        : "bg-white border border-[#dcd8ff] text-[#6b46ff] hover:bg-[#f1edff]"
-                                        }`}
-                                >
-                                    {categoria}
-                                </button>
-                            ))}
-                        </div>
 
                         {/* LISTA DE ITENS */}
                         {loading ? (
@@ -256,16 +250,7 @@ export default function PedidoIA() {
                                             </p>
                                         </div>
 
-                                        <button
-                                            onClick={() => adicionarAoCarrinho(item)}
-                                            className="mt-4 bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white px-4 py-2 rounded-xl text-sm font-medium shadow hover:opacity-90 transition"
-                                        >
-                                            <Icon
-                                                icon="fluent:add-circle-24-filled"
-                                                className="inline w-4 h-4 mr-1"
-                                            />
-                                            Adicionar
-                                        </button>
+                                        
                                     </div>
                                 ))}
                             </div>

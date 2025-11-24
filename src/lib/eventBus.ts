@@ -8,6 +8,14 @@ class EventBus {
     this.listeners[event].push(callback);
   }
 
+  off(event: string, callback: Listener) {
+    if (!this.listeners[event]) return;
+
+    this.listeners[event] = this.listeners[event].filter(
+      (cb) => cb !== callback
+    );
+  }
+
   emit(event: string, data: any) {
     if (!this.listeners[event]) return;
     this.listeners[event].forEach((cb) => cb(data));
