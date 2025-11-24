@@ -19,12 +19,14 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const stats = {
-    liveOrders: 5,
-    avgPrep: 12,
-    revenue: 1250,
-    newCustomers: 15,
-  };
+  // Estatísticas reais do dashboard
+  const [stats, setStats] = useState({
+    liveOrders: 0,
+    avgPrep: 0,
+    revenue: 0,
+    newCustomers: 0,
+  });
+
 
   // ======== Buscar Itens do Cardápio ========
   const fetchMenuItems = async () => {
@@ -49,11 +51,44 @@ export default function AdminDashboard() {
     }
   };
 
+  // Carregar cardápio quando entrar na aba cardápio
   useEffect(() => {
     if (activeTab === "cardapio") {
       fetchMenuItems();
     }
   }, [activeTab]);
+
+  // Carregar cardápio ao abrir a página (primeiro carregamento)
+  useEffect(() => {
+    fetchMenuItems();
+  }, []);
+
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch("http://localhost:1337/dashboard/stats", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        });
+
+        const data = await res.json();
+
+        setStats({
+          liveOrders: data.ordensAtivas || 0,
+          avgPrep: data.tempoMedio || 0,
+          revenue: data.faturamento || 0,
+          newCustomers: data.totalPedidos || 0,
+        });
+
+      } catch (error) {
+        console.error("Erro ao carregar estatísticas:", error);
+      }
+    };
+
+    fetchStats();
+  }, []);
 
   return (
     <section className="min-h-screen bg-gradient-to-b from-[#f9f9ff] to-[#f2f6ff] p-8 text-gray-800">
@@ -113,10 +148,10 @@ export default function AdminDashboard() {
               subtitle={`Tempo médio de preparo: ${stats.avgPrep} min`}
             />
             <Card
-              title="Lucro de Hoje"
+              title="Faturamento de Hoje"
               icon={<DollarSign className="text-green-500" />}
-              value={`R$ ${stats.revenue.toLocaleString()}`}
-              subtitle="Lucro médio por pedido: R$ 7,50"
+              value={`R$ ${stats.revenue.toFixed(2)}`}
+              subtitle={`Total de pedidos: ${stats.newCustomers}`}
             />
             <Card
               title="Novos Clientes"

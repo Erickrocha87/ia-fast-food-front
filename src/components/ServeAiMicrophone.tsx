@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
+import { eventBus } from "@/lib/eventBus";
 
 type StatusLabel = "Clique para falar" | "Conectando" | "Escutando";
 
@@ -157,9 +158,9 @@ ${JSON.stringify(menu, null, 2)}
 
     // 3.5 microfone
     mic.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mic.current.getTracks().forEach((t) =>
-      pc.current!.addTrack(t, mic.current!)
-    );
+    mic.current
+      .getTracks()
+      .forEach((t) => pc.current!.addTrack(t, mic.current!));
 
     // 3.6 handshake WebRTC
     const offer = await pc.current.createOffer();
@@ -192,6 +193,8 @@ ${JSON.stringify(menu, null, 2)}
       pc.current?.close();
       mic.current?.getTracks().forEach((t) => t.stop());
     } catch {}
+
+    eventBus.emit("ia:stop", null);
   }
 
   // ============================================================
@@ -246,6 +249,20 @@ ${JSON.stringify(menu, null, 2)}
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: toolName, args }),
       }).then((r) => r.json());
+
+      // 🔥🔥 EMITE EVENTO DE ATUALIZAÇÃO AO FRONT
+      if (toolName === "add_to_order") {
+        eventBus.emit("pedido:add", {
+          id: args.menuItemId,
+          quantity: args.quantity ?? 1,
+        });
+      }
+
+      if (toolName === "remove_from_order") {
+        eventBus.emit("pedido:remove", {
+          id: args.menuItemId,
+        });
+      }
 
       const toolText =
         toolResponse?.result?.message ||

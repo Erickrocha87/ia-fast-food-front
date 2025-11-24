@@ -1,0 +1,17 @@
+type Listener = (data: any) => void;
+
+class EventBus {
+  private listeners: Record<string, Listener[]> = {};
+
+  on(event: string, callback: Listener) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+  }
+
+  emit(event: string, data: any) {
+    if (!this.listeners[event]) return;
+    this.listeners[event].forEach((cb) => cb(data));
+  }
+}
+
+export const eventBus = new EventBus();
