@@ -138,8 +138,6 @@ export default function CustomerOrderMenu() {
             <p className="text-xs text-gray-500">Mesa atual</p>
           </div>
         </div>
-        {/* Botão falar */}
-        <ServeAIMicrophone />
       </header>
 
       {/* Busca */}

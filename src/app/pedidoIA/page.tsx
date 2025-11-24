@@ -84,7 +84,7 @@ export default function PedidoIA() {
                         <h1 className="text-xl font-semibold text-[#4b3fff]">
                             ServeAI – Atendimento Inteligente
                         </h1>
-                        <p className="text-gray-500">Mesa 05 - Garçom Virtual</p>
+                        <p className="text-gray-500">Mesa Atual</p>
                     </div>
 
                     {/* Removido: Configurações e Sair */}
