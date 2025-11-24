@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
+import { eventBus } from "@/lib/eventBus";
 
 
 export default function ServeAIRealtimeVoice({ tableNumber = "12" }) {
@@ -229,6 +230,8 @@ Você:
       pc.current?.close();
       mic.current?.getTracks().forEach((t) => t.stop());
     } catch {}
+
+    eventBus.emit("ia:stop", null);
   }
 
   function send(obj: any) {
@@ -237,68 +240,76 @@ Você:
     }
   }
 
-  async function onEvent(msg: MessageEvent) {
-    let ev;
-    try {
-      ev = JSON.parse(msg.data);
-    } catch {
-      return;
-    }
-
-    console.log("📩 EVENTO IA:", ev);
-
-    if (
-      ev.type === "response.output_item.done" &&
-      ev.item?.type === "output_text"
-    ) {
-      console.log("🗣 IA DISSE:", ev.item.text);
-    }
-
-    if (
-      ev.type === "response.output_item.done" &&
-      ev.item?.type === "function_call"
-    ) {
-      const toolName = ev.item.name;
-      let args = ev.item.arguments;
-
-      if (typeof args === "string") {
-        try {
-          args = JSON.parse(args);
-        } catch {}
-      }
-
-      args.tableNumber = tableNumber;
-
-      console.log("🛠 Executando tool:", toolName, args);
-
-      const toolResponse = await fetch("http://localhost:1337/tool-call", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: toolName, args }),
-      }).then((r) => r.json());
-
-      const toolText =
-        toolResponse?.message ||
-        toolResponse?.result?.message ||
-        JSON.stringify(toolResponse?.result || toolResponse);
-
-      send({
-        type: "tool_output.create",
-        tool_output: {
-          tool_call_id: ev.item.id,
-          content: [{ type: "output_text", text: toolText }],
-        },
-      });
-
-      send({
-        type: "response.create",
-        response: {
-          modalities: ["audio"],
-          continue_after_tool: true,
-        },
-      });
-    }
+async function onEvent(msg: MessageEvent) {
+  let ev;
+  try {
+    ev = JSON.parse(msg.data);
+  } catch {
+    return;
   }
+
+  console.log("📩 EVENTO IA:", ev);
+
+  if (
+    ev.type === "response.output_item.done" &&
+    ev.item?.type === "function_call"
+  ) {
+    const toolName = ev.item.name;
+    let args = ev.item.arguments;
+
+    if (typeof args === "string") {
+      try {
+        args = JSON.parse(args);
+      } catch {}
+    }
+
+    args.tableNumber = tableNumber;
+
+    console.log("🛠 Executando tool:", toolName, args);
+
+    const toolResponse = await fetch("http://localhost:1337/tool-call", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: toolName, args }),
+    }).then((r) => r.json());
+
+    // 🔥🔥 EMITE EVENTO DE ATUALIZAÇÃO AO FRONT
+    if (toolName === "add_to_order") {
+      eventBus.emit("pedido:add", {
+        id: args.menuItemId,
+        quantity: args.quantity ?? 1,
+      });
+    }
+
+    if (toolName === "remove_from_order") {
+      eventBus.emit("pedido:remove", {
+        id: args.menuItemId,
+      });
+    }
+
+    const toolText =
+      toolResponse?.message ||
+      toolResponse?.result?.message ||
+      JSON.stringify(toolResponse?.result || toolResponse);
+
+    send({
+      type: "tool_output.create",
+      tool_output: {
+        tool_call_id: ev.item.id,
+        content: [{ type: "output_text", text: toolText }],
+      },
+    });
+
+    send({
+      type: "response.create",
+      response: {
+        modalities: ["audio"],
+        continue_after_tool: true,
+      },
+    });
+  }
+}
+
 
   return (
     <div className="flex flex-col items-center gap-4 p-4">
