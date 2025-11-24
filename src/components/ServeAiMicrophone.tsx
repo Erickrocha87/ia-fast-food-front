@@ -3,18 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 
+type StatusLabel = "Clique para falar" | "Conectando" | "Escutando";
 
-export default function ServeAIRealtimeVoice({ tableNumber = "12" }) {
+interface ServeAIRealtimeVoiceProps {
+  tableNumber?: string;
+}
+
+export default function ServeAIRealtimeVoice({
+  tableNumber = "12",
+}: ServeAIRealtimeVoiceProps) {
   const pc = useRef<RTCPeerConnection | null>(null);
   const dc = useRef<RTCDataChannel | null>(null);
   const mic = useRef<MediaStream | null>(null);
 
-  const [status, setStatus] = useState<"Clique para falar" | "Conectando" | "Escutando">(
-    "Clique para falar"
-  );
-
+  const [status, setStatus] = useState<StatusLabel>("Clique para falar");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menu, setMenu] = useState<any[]>([]);
 
+  // ============================================================
+  // 1) CARREGAR CARDÁPIO UMA VEZ
+  // ============================================================
   useEffect(() => {
     fetch("http://localhost:1337/menu")
       .then((r) => r.json())
@@ -25,82 +33,81 @@ export default function ServeAIRealtimeVoice({ tableNumber = "12" }) {
       .catch((err) => console.error("Erro menu:", err));
   }, []);
 
+  // ============================================================
+  // 2) SYSTEM PROMPT FINAL
+  // ============================================================
   function buildSystemPrompt() {
     return `
-Você é o ATENDENTE VIRTUAL do restaurante. 
-Fale sempre em português do Brasil. Seja educado, rápido e objetivo.
+Você é o ATENDENTE VIRTUAL do restaurante.
+Fale SEMPRE em português do Brasil, de forma educada, curta e objetiva.
 
-⚠️ Limites rígidos:
-- Você só fala sobre pedidos, cardápio, mesa e restaurante.
-- Se perguntarem qualquer coisa fora disso, responda:
-  "Sou o atendente virtual do restaurante e só posso ajudar com cardápio e pedidos."
+=====================================================================
+REGRAS ABSOLUTAS (NÃO QUEBRAR)
+=====================================================================
+1. Não invente itens, preços, promoções ou quantidades.
+2. NÃO execute tools sem intenção CLARA do cliente.
+3. NÃO execute tools baseadas em frases vagas como:
+   - "beleza"
+   - "ok"
+   - "tranquilo"
+   - "qualquer coisa eu chamo"
+   - "tudo bem"
+   - "pode ser"
+   - "tá bom"
+   Essas frases NÃO indicam intenção → responda cordialmente sem executar tool.
+4. Se o cliente cumprimentar ("boa tarde", "oi", etc.), responda normalmente.
+5. Só acione ferramentas quando:
+   - houver um item do cardápio mencionado
+   - houver um verbo de ação claro ("quero", "adicionar", "coloca", "remove")
 
-⚡ Prioridade máxima: Você NUNCA pode inventar itens, valores ou ofertas.
-⚡ Você só pode usar itens do cardápio abaixo:
-${JSON.stringify(menu, null, 2)}
+=====================================================================
+DETECÇÃO DE INTENÇÕES
+=====================================================================
 
-===================================================
-REGRAS DE AÇÃO (SIGA EXATAMENTE NESTA ORDEM)
-===================================================
+1) list_menu_items → Use quando cliente pedir:
+   - “me mostra o cardápio”
+   - “quais são as pizzas?”
+   - “quais são as bebidas?”
+   - “mostrar cardápio geral”
+   • Se pedir cardápio geral → query ""
+   • Se citar categoria → query com a categoria
 
-1) Identifique a intenção do cliente:
-   - adicionar item → use add_to_order
-   - remover item → use remove_from_order
-   - ver total/resumo → use get_order_summary
-   - ver opções → use list_menu_items
-   - mais de um item pedido → trate UM por vez
+2) add_to_order → Use SOMENTE quando:
+   - houver item do cardápio citado PELO NOME
+   - houver verbo claro: “coloca”, “adiciona”, “quero”, “pode trazer”
 
-2) Antes de chamar qualquer tool, fale UMA frase curta:
+3) remove_from_order → Use SOMENTE quando:
+   - o cliente citar item + verbo “remover”, “tirar”, “sem”
+
+4) get_order_summary → Use quando perguntar:
+   - “qual o total?”
+   - “quanto deu?”
+   - “me diz o total”
+
+=====================================================================
+PROTOCOLO OBRIGATÓRIO
+=====================================================================
+1. Antes de tool → Fale UMA frase curta:
    - "Claro, vou adicionar."
-   - "Perfeito, removendo."
+   - "Perfeito, vou remover."
    - "Um instante, vou verificar."
    - "Vou te mostrar."
 
-3) Depois dessa frase, chame EXATAMENTE 1 tool_call.
-   Nunca chame 2 tools no mesmo turno.
+2. Após tool:
+   - Use exatamente o texto retornado pela ferramenta.
+   - Nunca altere valores.
+   - Termine com: “Deseja mais alguma coisa?”
 
-4) Quando receber o resultado da tool_call, responda SEMPRE:
-   - confirme a ação realizada
-   - descreva o que foi resolvido
-   - ofereça ajuda extra
-
-5) Quando um pedido inclui 2 itens na mesma frase:
-   - adicione o primeiro item normalmente
-   - depois PERGUNTE:
-     "Você também quer que eu adicione <ITEM 2>?"
-   - só adicione o segundo item se o cliente confirmar
-
-6) Nunca sugira itens. Nunca complete pedidos automaticamente.
-
-7) Se não tiver certeza de qual item o cliente quer:
-   PERGUNTE antes de executar qualquer tool.
-
-8) Nunca diga “vou verificar” sem responder depois do tool_output.
-
-===================================================
-EXEMPLOS CURTOS (SEMPRE SIGA ESTE ESTILO)
-===================================================
-
-Cliente: "Quero um brownie."
-Você:
-  "Claro, vou adicionar."
-  [tool add_to_order]
-  "Prontinho, adicionei 1 brownie. Posso ajudar em algo mais?"
-
-Cliente: "Quero um hambúrguer e um refrigerante."
-Você:
-  "Claro, vou adicionar o hambúrguer."
-  [tool para o hambúrguer]
-  "Adicionei o hambúrguer. Você também quer 1 refrigerante?"
-
-Cliente: "Qual o total?"
-Você:
-  "Um instante, vou verificar."
-  [tool get_order_summary]
-  "O total é R$ X. Deseja algo mais?"
-    `;
+=====================================================================
+CARDÁPIO OFICIAL (NÃO INVENTAR NADA)
+=====================================================================
+${JSON.stringify(menu, null, 2)}
+`;
   }
 
+  // ============================================================
+  // 3) INICIAR VOZ / WEBRTC
+  // ============================================================
   async function startVoice() {
     if (status !== "Clique para falar") {
       stopVoice();
@@ -109,97 +116,52 @@ Você:
 
     setStatus("Conectando");
 
+    // 3.1 Buscar client_secret
     const session = await fetch("http://localhost:1337/session").then((r) =>
       r.json()
     );
 
+    // 3.2 Criar conexões
     pc.current = new RTCPeerConnection();
     dc.current = pc.current.createDataChannel("oai-events");
 
+    // 3.3 Canal aberto
     dc.current.onopen = () => {
-      console.log("🟢 Canal WebRTC aberto!");
       setStatus("Escutando");
+      console.log("🟢 Canal WebRTC aberto!");
 
       send({
         type: "session.update",
         session: {
           instructions: buildSystemPrompt(),
-          tools: [
-            {
-              type: "function",
-              name: "add_to_order",
-              description: "Adiciona item ao pedido",
-              parameters: {
-                type: "object",
-                properties: {
-                  tableNumber: { type: "string" },
-                  menuItemId: { type: "number" },
-                  quantity: { type: "number" },
-                },
-                required: ["tableNumber", "menuItemId"],
-              },
-            },
-            {
-              type: "function",
-              name: "remove_from_order",
-              description: "Remove item do pedido",
-              parameters: {
-                type: "object",
-                properties: {
-                  tableNumber: { type: "string" },
-                  menuItemId: { type: "number" },
-                  quantity: { type: "number" },
-                },
-                required: ["tableNumber", "menuItemId"],
-              },
-            },
-            {
-              type: "function",
-              name: "get_order_summary",
-              description: "Resumo do pedido",
-              parameters: {
-                type: "object",
-                properties: {
-                  tableNumber: { type: "string" },
-                },
-                required: ["tableNumber"],
-              },
-            },
-            {
-              type: "function",
-              name: "list_menu_items",
-              description: "Lista itens do cardápio",
-              parameters: {
-                type: "object",
-                properties: { query: { type: "string" } },
-              },
-            },
-          ],
         },
       });
 
       send({
         type: "response.create",
         response: {
-          modalities: ["audio"],
-          continue_after_tool: true,
+          modalities: ["audio", "text"],
+          instructions: "Atenda o cliente normalmente.",
         },
       });
     };
 
-    dc.current.onmessage = (msg) => onEvent(msg);
+    dc.current.onmessage = handleEvent;
 
+    // 3.4 áudio retornado pela IA
     const audio = new Audio();
     audio.autoplay = true;
-    pc.current.ontrack = (ev) => {
-      audio.srcObject = ev.streams[0];
+    pc.current.ontrack = (event) => {
+      audio.srcObject = event.streams[0];
     };
 
+    // 3.5 microfone
     mic.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mic.current
-      .getTracks()
-      .forEach((t) => pc.current!.addTrack(t, mic.current!));
+    mic.current.getTracks().forEach((t) =>
+      pc.current!.addTrack(t, mic.current!)
+    );
 
+    // 3.6 handshake WebRTC
     const offer = await pc.current.createOffer();
     await pc.current.setLocalDescription(offer);
 
@@ -214,6 +176,7 @@ Você:
         },
       }
     );
+
     const answerSdp = await r.text();
 
     await pc.current.setRemoteDescription({
@@ -231,14 +194,22 @@ Você:
     } catch {}
   }
 
+  // ============================================================
+  // 4) Envio
+  // ============================================================
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function send(obj: any) {
     if (dc.current?.readyState === "open") {
       dc.current.send(JSON.stringify(obj));
     }
   }
 
-  async function onEvent(msg: MessageEvent) {
-    let ev;
+  // ============================================================
+  // 5) EVENTOS DA IA (FINAL)
+  // ============================================================
+  async function handleEvent(msg: MessageEvent) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let ev: any;
     try {
       ev = JSON.parse(msg.data);
     } catch {
@@ -247,29 +218,28 @@ Você:
 
     console.log("📩 EVENTO IA:", ev);
 
-    if (
-      ev.type === "response.output_item.done" &&
-      ev.item?.type === "output_text"
-    ) {
-      console.log("🗣 IA DISSE:", ev.item.text);
+    // SALVAR TEXTO FINAL NO BACKEND
+    if (ev.type === "response.text.done" && ev.text) {
+      fetch("http://localhost:1337/transcript", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableNumber, text: ev.text }),
+      }).catch(() => {});
     }
 
-    if (
-      ev.type === "response.output_item.done" &&
-      ev.item?.type === "function_call"
-    ) {
-      const toolName = ev.item.name;
-      let args = ev.item.arguments;
+    // CHAMADA DE TOOL
+    if (ev.type === "response.function_call_arguments.done") {
+      const toolName = ev.name;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let args: any = {};
 
-      if (typeof args === "string") {
-        try {
-          args = JSON.parse(args);
-        } catch {}
-      }
+      try {
+        args = ev.arguments ? JSON.parse(ev.arguments) : {};
+      } catch {}
 
       args.tableNumber = tableNumber;
 
-      console.log("🛠 Executando tool:", toolName, args);
+      console.log("🛠 Chamando tool backend:", toolName, args);
 
       const toolResponse = await fetch("http://localhost:1337/tool-call", {
         method: "POST",
@@ -278,23 +248,27 @@ Você:
       }).then((r) => r.json());
 
       const toolText =
-        toolResponse?.message ||
         toolResponse?.result?.message ||
+        toolResponse?.message ||
         JSON.stringify(toolResponse?.result || toolResponse);
 
+      // 1) Entregar resultado pro modelo
       send({
-        type: "tool_output.create",
-        tool_output: {
-          tool_call_id: ev.item.id,
-          content: [{ type: "output_text", text: toolText }],
+        type: "conversation.item.create",
+        item: {
+          type: "function_call_output",
+          call_id: ev.call_id,
+          output: toolText,
         },
       });
 
+      // 2) Pedir continuação em áudio
       send({
         type: "response.create",
         response: {
-          modalities: ["audio"],
-          continue_after_tool: true,
+          modalities: ["audio", "text"],
+          instructions:
+            "Use o resultado enviado e responda ao cliente educadamente.",
         },
       });
     }
@@ -305,13 +279,12 @@ Você:
       <button
         onClick={status === "Clique para falar" ? startVoice : stopVoice}
         className={`flex items-center gap-2 bg-gradient-to-r 
-    ${
-      status === "Clique para falar"
-        ? "from-[#8b5cf6] to-[#3b82f6]"
-        : "from-red-500 to-red-700"
-    }
-    text-white px-4 py-2 rounded-xl text-sm shadow hover:opacity-90 transition
-  `}
+          ${
+            status === "Clique para falar"
+              ? "from-[#8b5cf6] to-[#3b82f6]"
+              : "from-red-500 to-red-700"
+          }
+          text-white px-4 py-2 rounded-xl text-sm shadow hover:opacity-90 transition`}
       >
         {status === "Clique para falar" ? (
           <>
@@ -327,7 +300,7 @@ Você:
       </button>
 
       <div className="text-sm text-gray-600">
-        Status: <b>{status}</b>
+        Status: <b>{status}</b> • Mesa {tableNumber}
       </div>
     </div>
   );
