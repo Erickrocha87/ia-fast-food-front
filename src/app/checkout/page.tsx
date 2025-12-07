@@ -10,13 +10,10 @@ export default function CheckoutPage() {
   const plano = params.get("plano") ?? "basico";
   const tipo = params.get("tipo") ?? "mensal";
 
-  const [metodo, setMetodo] = useState<"pix" | "card">("pix");
-  const [pixQr, setPixQr] = useState("");
-  const [pixCopiaCola, setPixCopiaCola] = useState("");
+  const [metodo, setMetodo] = useState<"card">("card");
   const [loading, setLoading] = useState(false);
 
-  // 📌 Preços
-  const tabela: any = {
+  const tabela: Record<string, { nome: string; mensal: number; anual: number; desconto: number }> = {
     basico: { nome: "Básico", mensal: 99.9, anual: 999.9, desconto: 198.9 },
     profissional: {
       nome: "Profissional",
@@ -32,9 +29,7 @@ export default function CheckoutPage() {
   const desconto = tipo === "mensal" ? 0 : dados.desconto;
   const total = preco - desconto;
 
-  // ==============================================================
-  // 💳 Checkout (Nova Forma)
-  // ==============================================================
+
   async function pagarComCartao() {
     setLoading(true);
 
@@ -48,7 +43,7 @@ export default function CheckoutPage() {
     ).then((res) => res.json());
 
     if (r.url) {
-      window.location.href = r.url; // 👈 Agora funciona!
+      window.location.href = r.url;
     } else {
       alert("Erro ao iniciar checkout.");
     }
@@ -56,31 +51,9 @@ export default function CheckoutPage() {
     setLoading(false);
   }
 
-  // ==============================================================
-  // ⚡ PIX
-  // ==============================================================
-  async function pagarComPix() {
-    setLoading(true);
-
-    const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/stripe/pix`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plano: dados.nome, total }),
-    }).then((res) => res.json());
-
-    if (!r.pix) {
-      alert("Erro ao gerar PIX.");
-    } else {
-      setPixQr(r.pix.qr_code_base64);
-      setPixCopiaCola(r.pix.qr_code);
-    }
-
-    setLoading(false);
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#ece9ff] to-[#f6f4ff] px-6 py-10">
-      {/* VOLTAR */}
+
       <button
         onClick={() => router.push("/planos")}
         className="text-purple-600 font-medium mb-6 hover:underline flex items-center gap-2"
@@ -89,14 +62,13 @@ export default function CheckoutPage() {
       </button>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* PAINEL */}
+
         <div className="md:col-span-2 bg-white rounded-3xl p-10 shadow-xl border border-gray-200">
           <h1 className="text-3xl font-bold text-gray-800 mb-1">
             Finalizar Assinatura
           </h1>
           <p className="text-gray-600 mb-10">Escolha a forma de pagamento</p>
 
-          {/* MÉTODOS */}
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={() => setMetodo("card")}
@@ -108,49 +80,9 @@ export default function CheckoutPage() {
             >
               💳 Cartão
             </button>
-
-            <button
-              onClick={() => setMetodo("pix")}
-              className={`p-5 rounded-xl border shadow-sm text-lg font-medium transition ${
-                metodo === "pix"
-                  ? "border-purple-600 bg-purple-100 text-purple-700"
-                  : "border-gray-300 text-gray-600"
-              }`}
-            >
-              ⚡ PIX
-            </button>
           </div>
 
-          {/* PIX */}
-          {metodo === "pix" && (
-            <div className="mt-10 text-center">
-              {!pixQr && (
-                <button
-                  onClick={pagarComPix}
-                  disabled={loading}
-                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl px-8 py-4 shadow-lg transition font-semibold disabled:opacity-50"
-                >
-                  {loading ? "Gerando QR Code..." : "Gerar QR Code PIX"}
-                </button>
-              )}
-
-              {pixQr && (
-                <div className="mt-6">
-                  <img
-                    src={`data:image/png;base64,${pixQr}`}
-                    className="mx-auto w-56 h-56 shadow-xl rounded-xl"
-                  />
-
-                  <button
-                    onClick={() => navigator.clipboard.writeText(pixCopiaCola)}
-                    className="mt-6 bg-purple-100 px-6 py-3 rounded-lg text-purple-700 hover:bg-purple-200 transition"
-                  >
-                    Copiar Código PIX
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+    
 
           {/* CARTÃO */}
           {metodo === "card" && (
