@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { Icon } from "@iconify/react";
 
 export default function PlanosPage() {
   const router = useRouter();
@@ -76,65 +78,218 @@ export default function PlanosPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f8f9ff] to-[#eef2ff] px-6 py-10">
-      
-      <button
-        onClick={handleLogout}
-        className="text-purple-600 font-medium mb-6 hover:underline flex items-center gap-2"
-      >
-        ← Voltar
-      </button>
+    <div className="min-h-screen bg-gradient-to-br from-[#f5f6ff] via-[#f0f1ff] to-[#e7ebff] text-gray-900 flex flex-col relative overflow-hidden">
 
-      <h1 className="text-3xl font-semibold text-gray-800 mb-3">
-        Selecione o melhor plano para o seu restaurante
-      </h1>
+      <div className="pointer-events-none absolute -top-32 -left-10 h-72 w-72 rounded-full bg-[#7b4fff]/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-10 h-80 w-80 rounded-full bg-[#3b82f6]/25 blur-3xl" />
 
+      <header className="w-full relative z-10 border-b border-white/60/40">
+        <div className="max-w-6xl mx-auto px-6 lg:px-2 xl:px-0 py-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/serveai-logo.png"
+              alt="ServeAI"
+              width={48}
+              height={48}
+              className="rounded-2xl"
+            />
+            <div>
+              <p className="text-sm font-semibold text-[#4b38ff]">ServeAI</p>
+              <p className="text-[11px] text-gray-500">
+                Pedidos inteligentes para restaurantes
+              </p>
+            </div>
+          </div>
 
-
-      {/* CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-10">
-        {planos.map((plano) => (
-          <div
-            key={plano.id}
-            className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200 hover:shadow-xl transition flex flex-col h-full"
-          >
-            {plano.popular && (
-              <span className="bg-orange-500 text-white text-xs px-3 py-1 rounded-full mb-3 inline-block">
-                Popular
-              </span>
-            )}
-
-            <h3 className="text-xl font-semibold text-gray-800">
-              {plano.nome}
-            </h3>
-
-            <p className="text-purple-600 font-bold text-2xl mt-3">
-              R$ {tipo === "mensal" ? plano.precoMensal : plano.precoAnual}/
-              {tipo === "mensal" ? "mês" : "ano"}
-            </p>
-
-            <p className="text-green-500 text-sm">{plano.economia}</p>
-
-            {/* Lista de recursos */}
-            <ul className="mt-6 space-y-2 text-gray-700 flex-1">
-              {plano.recursos.map((r, i) => (
-                <li key={i} className="flex gap-2 items-center">
-                  <span className="text-purple-500">✔</span>
-                  {r}
-                </li>
-              ))}
-            </ul>
-
-            {/* BOTÃO ESCOLHER */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => escolherPlano(plano.id)}
-              className="w-full mt-auto bg-purple-200 text-purple-700 py-3 rounded-lg font-semibold hover:bg-purple-300 transition"
+              onClick={() => router.push("/dashboard")}
+              className="hidden sm:inline-flex items-center gap-2 text-xs px-3 py-2 rounded-full border border-[#d7d3ff] bg-white/60 hover:bg-white transition"
             >
-              Escolher
+              <Icon icon="fluent:arrow-left-16-regular" className="w-4 h-4" />
+              <span>Voltar ao painel</span>
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 text-xs font-medium px-4 py-2 rounded-full bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white shadow-md hover:opacity-90 transition"
+            >
+              <Icon icon="fluent:person-arrow-left-16-regular" className="w-4 h-4" />
+              <span>Sair</span>
             </button>
           </div>
-        ))}
-      </div>
+        </div>
+      </header>
+
+      <main className="flex-1 w-full relative z-10">
+        <div className="max-w-6xl mx-auto px-6 lg:px-2 xl:px-0 py-10">
+
+          <section className="max-w-3xl mb-10">
+            <div className="inline-flex items-center gap-2 bg-white/80 border border-[#e3e8ff] rounded-full px-3 py-1 text-[11px] text-[#6d4aff] font-medium shadow-sm mb-4">
+              <span className="text-lg">💡</span>
+              Planos pensados para o tamanho do seu restaurante
+            </div>
+
+            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 leading-tight mb-3">
+              Escolha o plano ideal e{" "}
+              <span className="bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] bg-clip-text text-transparent">
+                deixe a IA cuidar dos pedidos
+              </span>
+              .
+            </h1>
+
+            <p className="text-sm md:text-base text-gray-600 mb-6 max-w-2xl">
+              Comece com o básico ou vá direto para uma experiência completa de
+              atendimento com IA em voz e tela. Você pode mudar de plano a
+              qualquer momento.
+            </p>
+
+          </section>
+
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-7 md:gap-6 items-stretch pt-10">
+            {planos.map((plano) => {
+              const preco =
+                tipo === "mensal" ? plano.precoMensal : plano.precoAnual;
+
+              const tokensFormatados = plano.tokensMensais.toLocaleString(
+                "pt-BR"
+              );
+
+              const tabletsLabel =
+                typeof plano.tablets === "number"
+                  ? `${plano.tablets} tablets`
+                  : `${plano.tablets} tablets`;
+
+              const isPopular = plano.popular;
+
+              return (
+                <div
+                  key={plano.id}
+                  className={`relative flex flex-col h-full rounded-3xl border bg-white/90 shadow-sm transition
+                    ${
+                      isPopular
+                        ? "border-transparent shadow-[0_18px_50px_rgba(80,60,220,0.20)] scale-[1.02] md:-mt-4 md:mb-4 bg-gradient-to-b from-[#7b4fff]/15 via-white to-white"
+                        : "border-[#e2e4ff] hover:shadow-md"
+                    }
+                  `}
+                >
+                  {isPopular && (
+                    <div className="absolute -top-3 left-6">
+                      <span className="inline-flex items-center gap-1 bg-gradient-to-r from-[#f97316] to-[#fb923c] text-white text-[11px] px-3 py-1 rounded-full shadow-md">
+                        <Icon
+                          icon="fluent:star-12-filled"
+                          className="w-3.5 h-3.5"
+                        />
+                        Mais escolhido
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="p-6 pb-5 flex-1 flex flex-col">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      {plano.nome}
+                      {plano.id === "premium" && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#fee2e2] text-[#b91c1c] font-medium">
+                          Para grandes operações
+                        </span>
+                      )}
+                    </h3>
+
+                    <div className="mt-4 mb-2">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-sm text-gray-500">R$</span>
+                        <span className="text-3xl font-bold text-[#4b38ff] tracking-tight">
+                          {preco.toFixed(2)}
+                        </span>
+                        <span className="text-xs text-gray-500 ml-1">
+                          /{tipo === "mensal" ? "mês" : "ano"}
+                        </span>
+                      </div>
+
+                      {tipo === "anual" && (
+                        <p className="text-[11px] text-green-600 font-medium mt-1">
+                          {plano.economia}
+                        </p>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-gray-500 mb-4">
+                      {tokensFormatados} tokens por mês • {tabletsLabel}
+                    </p>
+
+                    <div className="h-px w-full bg-gradient-to-r from-transparent via-[#d6d3ff] to-transparent mb-4" />
+
+                    <ul className="mt-1 space-y-2 text-sm text-gray-700 flex-1">
+                      {plano.recursos.map((r, i) => (
+                        <li key={i} className="flex gap-2 items-start">
+                          <span className="mt-0.5">
+                            <Icon
+                              icon="fluent:checkmark-circle-16-filled"
+                              className="w-4 h-4 text-[#7b4fff]"
+                            />
+                          </span>
+                          <span>{r}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="px-6 pb-6 pt-1">
+                    <button
+                      onClick={() => escolherPlano(plano.id)}
+                      className={`w-full py-3 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 transition
+                        ${
+                          isPopular
+                            ? "bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white shadow-lg hover:brightness-110"
+                            : "bg-[#f3f0ff] text-[#6b46ff] hover:bg-[#e7e3ff]"
+                        }
+                      `}
+                    >
+                      <span>Escolher plano</span>
+                      <Icon
+                        icon="fluent:arrow-right-16-filled"
+                        className="w-4 h-4"
+                      />
+                    </button>
+
+                    <p className="text-[11px] text-gray-400 mt-2 text-center">
+                      {plano.id === "basico"
+                        ? "Ideal para quem está começando com IA no salão."
+                        : plano.id === "profissional"
+                        ? "Perfeito para bares, pizzarias e lanchonetes em crescimento."
+                        : "Feito para operações de alto volume."}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+
+          <section className="mt-10">
+            <div className="rounded-3xl bg-gradient-to-r from-[#7b4fff] via-[#6366f1] to-[#3b82f6] text-white px-6 md:px-10 py-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+              <div>
+                <h2 className="text-lg md:text-xl font-semibold mb-1">
+                  Ainda em dúvida sobre qual plano escolher?
+                </h2>
+                <p className="text-xs md:text-sm text-white/80 max-w-md">
+                  Comece com qualquer plano, teste com seu time e faça upgrade
+                  depois. A migração é automática e você não perde nenhum dado.
+                </p>
+              </div>
+              <button
+                onClick={() => escolherPlano("profissional")}
+                className="inline-flex items-center gap-2 bg-white text-[#4b38ff] px-5 py-2.5 rounded-full text-xs md:text-sm font-semibold shadow-md hover:bg-[#f5f3ff] transition"
+              >
+                <Icon
+                  icon="fluent:flash-16-filled"
+                  className="w-4 h-4 text-[#f97316]"
+                />
+                Começar pelo plano Profissional
+              </button>
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
   );
 }

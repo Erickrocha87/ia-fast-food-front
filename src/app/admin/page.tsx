@@ -16,8 +16,6 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("geral");
   const { isReady } = useAuthGuard();
 
-  
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -110,14 +108,12 @@ export default function AdminDashboard() {
   }, []);
 
   if (!isReady) {
-    return null; 
+    return null;
   }
 
   return (
     <div className="w-full h-screen flex bg-[#0f172a]/5 text-gray-800 overflow-hidden">
-    
       <aside className="hidden md:flex w-64 h-full flex-col bg-gradient-to-b from-[#7b4fff] via-[#a855f7] to-[#3b82f6] text-white p-6 gap-8">
-        
         <div className="flex items-center gap-3">
           <div>
             <p className="font-semibold text-sm">ServeAI</p>
@@ -125,7 +121,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
- 
         <nav className="flex-1 flex flex-col gap-2 text-sm">
           {[
             {
@@ -141,6 +136,16 @@ export default function AdminDashboard() {
             {
               id: "cardapio",
               label: "Cardápio",
+              icon: <UtensilsCrossed className="w-4 h-4" />,
+            },
+            {
+              id: "cozinha",
+              label: "Cozinha",
+              icon: <UtensilsCrossed className="w-4 h-4" />,
+            },
+            {
+              id: "escolher",
+              label: "Escolher",
               icon: <UtensilsCrossed className="w-4 h-4" />,
             },
           ].map((item) => (
@@ -192,7 +197,6 @@ export default function AdminDashboard() {
       </aside>
 
       <div className="flex-1 h-full bg-[#f9f9ff] flex flex-col overflow-hidden">
-      
         <header className="w-full px-6 lg:px-10 pt-6 pb-4 bg-white shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-400">
@@ -205,8 +209,8 @@ export default function AdminDashboard() {
           </div>
           <button
             onClick={() => {
-              localStorage.removeItem("token"); 
-              window.location.href = "/login"; 
+              localStorage.removeItem("token");
+              window.location.href = "/login";
             }}
             className="flex items-center gap-1 bg-[#f4f4ff] border border-[#e2e4ff] px-4 py-2 rounded-xl text-xs font-medium text-gray-700 hover:bg-white transition"
           >
@@ -262,7 +266,7 @@ export default function AdminDashboard() {
                 ))}
               </div>
             )}
-        
+
             {activeTab === "cardapio" && (
               <div>
                 <h2 className="text-lg font-semibold text-[#6d4aff] mb-6">
@@ -403,11 +407,6 @@ function Card({ title, icon, value, subtitle }) {
 }
 
 function UserCard({ name, role }) {
-  const active =
-    status === "Ativo"
-      ? "bg-green-100 text-green-600"
-      : "bg-gray-100 text-gray-500";
-
   return (
     <div className="bg-white border border-[#ececff] rounded-2xl px-5 py-4 flex justify-between items-center shadow-sm hover:shadow-md transition">
       <div className="flex items-center gap-3">
@@ -463,22 +462,6 @@ function ConfigCard({ title, subtitle, icon, fields }) {
           ))}
         </ul>
       </div>
-    </div>
-  );
-}
-
-function MiniHighlight({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="bg-white border border-[#ececff] rounded-2xl p-4 shadow-sm hover:shadow-md transition">
-      <p className="text-[11px] text-[#7b4fff] font-medium mb-1">Novidade</p>
-      <h4 className="text-sm font-semibold text-gray-800 mb-1">{title}</h4>
-      <p className="text-xs text-gray-500">{description}</p>
     </div>
   );
 }

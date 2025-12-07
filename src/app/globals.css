@@ -120,3 +120,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+
+@keyframes slideLeft {
+  from {
+    transform: translateX(120%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slideLeft {
+  animation: slideLeft 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
