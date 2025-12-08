@@ -1,5 +1,5 @@
 "use client";
-import React, { use, useState } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/Botao";
@@ -14,13 +14,26 @@ export default function LoginPage() {
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    await login({ email, password });
-    router.push("/admin");
+
+    try {
+      const result = await login({ email, password });
+
+      if (result.hasSubscription) {
+        // já tem plano → vai direto pro painel
+        router.push("/admin");
+      } else {
+        // não tem plano → 1º acesso "prático" → vai pra escolher plano
+        router.push("/planos");
+      }
+    } catch (err) {
+      console.error("Erro no login:", err);
+      // aqui se quiser colocar um toast de erro depois
+    }
   };
 
   return (
     <div className="w-full h-screen flex overflow-hidden bg-[#f5f6ff]">
-
+      {/* LADO ESQUERDO */}
       <div className="hidden md:flex w-1/2 h-full bg-gradient-to-br from-[#7b4fff] via-[#a855f7] to-[#3b82f6] items-center justify-center text-white relative">
         <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_20%,#ffffff33,transparent_70%),radial-gradient(circle_at_80%_80%,#ffffff22,transparent_60%)]" />
 
@@ -41,8 +54,8 @@ export default function LoginPage() {
         </div>
       </div>
 
+      {/* LADO DIREITO / FORM */}
       <div className="w-full md:w-1/2 h-full bg-white flex flex-col">
-
         <div className="px-10 pt-10 flex items-center gap-4">
           <div className="flex items-center justify-center">
             <Image
@@ -71,7 +84,6 @@ export default function LoginPage() {
           </p>
 
           <form className="space-y-5" onSubmit={handleLogin}>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 E-mail
@@ -101,7 +113,6 @@ export default function LoginPage() {
             </div>
 
             <Button label="Entrar" type="submit" />
-
           </form>
         </div>
       </div>

@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("geral");
   const { isReady } = useAuthGuard();
 
+  // CARDÁPIO
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,6 +27,7 @@ export default function AdminDashboard() {
     findAll();
   }, []);
 
+  // STATS
   const [stats, setStats] = useState({
     liveOrders: 0,
     avgPrep: 0,
@@ -64,7 +66,6 @@ export default function AdminDashboard() {
       });
       const data = await res.json();
       setMenuItems(data);
-      // eslint-disable-next-line no-unused-vars
     } catch (err) {
       setErro("Erro ao buscar cardápio");
     } finally {
@@ -107,12 +108,83 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
+  // ================= PEDIDOS NO DASHBOARD =================
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [ordersPending, setOrdersPending] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [ordersCompleted, setOrdersCompleted] = useState<any[]>([]);
+  const [ordersTab, setOrdersTab] = useState<"pendentes" | "concluidos">(
+    "pendentes"
+  );
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+
+  const fetchOrders = async () => {
+    try {
+      setOrdersLoading(true);
+      setOrdersError(null);
+
+      const token = localStorage.getItem("token");
+
+      const [resPend, resComp] = await Promise.all([
+        fetch("http://localhost:1337/orders/kitchen", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch("http://localhost:1337/orders/kitchen/completed", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
+
+      const [dataPend, dataComp] = await Promise.all([
+        resPend.json(),
+        resComp.json(),
+      ]);
+
+      setOrdersPending(dataPend);
+      setOrdersCompleted(dataComp);
+    } catch (err) {
+      setOrdersError("Erro ao buscar pedidos");
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const completeOrder = async (id: number) => {
+    try {
+      setOrdersLoading(true);
+      await fetch(`http://localhost:1337/orders/kitchen/${id}/complete`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+      await fetchOrders();
+    } catch (err) {
+      console.error("Erro ao concluir pedido", err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  // carrega pedidos ao abrir o dashboard
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  // =========================================================
+
   if (!isReady) {
     return null;
   }
 
   return (
     <div className="w-full h-screen flex bg-[#0f172a]/5 text-gray-800 overflow-hidden">
+      {/* SIDEBAR */}
       <aside className="hidden md:flex w-64 h-full flex-col bg-gradient-to-b from-[#7b4fff] via-[#a855f7] to-[#3b82f6] text-white p-6 gap-8">
         <div className="flex items-center gap-3">
           <div>
@@ -136,16 +208,6 @@ export default function AdminDashboard() {
             {
               id: "cardapio",
               label: "Cardápio",
-              icon: <UtensilsCrossed className="w-4 h-4" />,
-            },
-            {
-              id: "cozinha",
-              label: "Cozinha",
-              icon: <UtensilsCrossed className="w-4 h-4" />,
-            },
-            {
-              id: "escolher",
-              label: "Escolher",
               icon: <UtensilsCrossed className="w-4 h-4" />,
             },
           ].map((item) => (
@@ -196,6 +258,7 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
+      {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1 h-full bg-[#f9f9ff] flex flex-col overflow-hidden">
         <header className="w-full px-6 lg:px-10 pt-6 pb-4 bg-white shadow-sm flex items-center justify-between">
           <div>
@@ -220,8 +283,10 @@ export default function AdminDashboard() {
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 lg:px-10 py-6 space-y-8">
+          {/* DASHBOARD GERAL */}
           {activeTab === "geral" && (
             <>
+              {/* MÉTRICAS */}
               <section className="mt-4">
                 <h2 className="text-base font-semibold mb-4">
                   Desempenho do restaurante
@@ -247,10 +312,25 @@ export default function AdminDashboard() {
                   />
                 </div>
               </section>
+
+              {/* TABELA DE PEDIDOS LOGO ABAIXO */}
+              <section className="mt-8">
+                <OrdersTable
+                  tab={ordersTab}
+                  setTab={setOrdersTab}
+                  pending={ordersPending}
+                  completed={ordersCompleted}
+                  loading={ordersLoading}
+                  error={ordersError}
+                  onRefresh={fetchOrders}
+                  onComplete={completeOrder}
+                />
+              </section>
             </>
           )}
 
           <section className="mt-2">
+            {/* USUÁRIOS */}
             {activeTab === "usuarios" && (
               <div className="grid gap-6">
                 <h2 className="text-lg font-semibold text-[#6d4aff]">
@@ -267,6 +347,7 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {/* CARDÁPIO */}
             {activeTab === "cardapio" && (
               <div>
                 <h2 className="text-lg font-semibold text-[#6d4aff] mb-6">
@@ -427,40 +508,267 @@ function UserCard({ name, role }) {
   );
 }
 
-function ConfigCard({ title, subtitle, icon, fields }) {
+/* =============== TABELA DE PEDIDOS COM PAGINAÇÃO ================= */
+
+function OrdersTable({
+  tab,
+  setTab,
+  pending,
+  completed,
+  loading,
+  error,
+  onRefresh,
+  onComplete,
+}: {
+  tab: "pendentes" | "concluidos";
+  setTab: (tab: "pendentes" | "concluidos") => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pending: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  completed: any[];
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onComplete: (id: number) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const perPage = 8;
+
+  const currentOrders = tab === "pendentes" ? pending : completed;
+
+  const filtered = currentOrders.filter((order) => {
+    const idMatch = String(order.id).includes(search);
+    const tableMatch = String(order.tableNumber || "").includes(search);
+    return idMatch || tableMatch;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  const isPendentes = tab === "pendentes";
+
   return (
-    <div className="bg-white border border-[#ececff] rounded-2xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Icon icon={icon} className="text-[#7b4fff] w-5 h-5" />
-          <h3 className="font-semibold text-[#6b46ff] text-sm">{title}</h3>
+    <div className="bg-white border border-[#e3e0ff] rounded-2xl shadow-sm p-6">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-[#6d4aff]">
+            Pedidos {isPendentes ? "em andamento" : "concluídos"}
+          </h2>
+          <p className="text-xs text-gray-500">
+            Veja rapidamente os pedidos que estão na cozinha ou já foram
+            finalizados.
+          </p>
         </div>
-        <p className="text-sm text-gray-500 mb-4">{subtitle}</p>
-        <ul className="space-y-2">
-          {fields.map((f, i) => (
-            <li
-              key={i}
-              className="flex justify-between items-center border-b border-gray-100 py-2"
+
+        <div className="flex items-center gap-3">
+          {/* Toggle Pendentes / Concluídos */}
+          <div className="flex bg-[#f4f4ff] border border-[#e2e4ff] rounded-full p-1 text-xs">
+            <button
+              onClick={() => {
+                setTab("pendentes");
+                setPage(1);
+              }}
+              className={`px-3 py-1 rounded-full transition ${
+                isPendentes
+                  ? "bg-white shadow-sm text-[#6d4aff]"
+                  : "text-gray-500 hover:text-[#6d4aff]"
+              }`}
             >
-              <span className="text-sm text-gray-700">{f.label}</span>
-              {f.type === "toggle" ? (
-                <div className="relative inline-block w-10 h-5">
-                  <input
-                    type="checkbox"
-                    className="opacity-0 w-0 h-0 peer"
-                    defaultChecked
-                  />
-                  <span className="absolute cursor-pointer inset-0 bg-gray-300 rounded-full peer-checked:bg-[#7b4fff] transition" />
-                  <span className="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition peer-checked:translate-x-5" />
-                </div>
-              ) : (
-                <span className="text-xs text-gray-600 bg-gray-100 px-3 py-1 rounded-lg">
-                  {f.value}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+              Pendentes
+            </button>
+            <button
+              onClick={() => {
+                setTab("concluidos");
+                setPage(1);
+              }}
+              className={`px-3 py-1 rounded-full transition ${
+                !isPendentes
+                  ? "bg-white shadow-sm text-[#16a34a]"
+                  : "text-gray-500 hover:text-[#16a34a]"
+              }`}
+            >
+              Concluídos
+            </button>
+          </div>
+
+          <button
+            onClick={onRefresh}
+            className="text-xs px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] hover:bg-white transition"
+          >
+            Atualizar
+          </button>
+        </div>
+      </div>
+
+      {/* filtros / busca */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-[#f7f7ff] border border-[#e0e0ff] rounded-xl px-3 py-2 text-sm w-full md:w-72">
+            <Icon
+              icon="fluent:search-20-regular"
+              className="w-4 h-4 text-[#7b4fff]"
+            />
+            <input
+              type="text"
+              placeholder="Buscar por pedido ou mesa..."
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="ml-2 bg-transparent outline-none flex-1 text-xs text-gray-700"
+            />
+          </div>
+        </div>
+
+        <div className="text-xs text-gray-500">
+          Mostrando{" "}
+          <span className="font-semibold">
+            {filtered.length === 0 ? 0 : (page - 1) * perPage + 1}
+            {" - "}
+            {Math.min(page * perPage, filtered.length)}
+          </span>{" "}
+          de <span className="font-semibold">{filtered.length}</span> pedidos
+        </div>
+      </div>
+
+      {/* tabela */}
+      <div className="overflow-x-auto border border-[#f0f0ff] rounded-2xl">
+        <table className="w-full text-sm">
+          <thead className="bg-[#fafaff] text-xs text-gray-500">
+            <tr className="border-b border-[#ececff]">
+              <th className="text-left py-3 px-4">Pedido</th>
+              <th className="text-left py-3 px-4">Mesa</th>
+              <th className="text-left py-3 px-4">Itens</th>
+              <th className="text-right py-3 px-4">Total</th>
+              <th className="text-center py-3 px-4">Status</th>
+              <th className="text-right py-3 px-4">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="py-8 text-center text-gray-400 text-sm"
+                >
+                  Carregando pedidos...
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="py-8 text-center text-red-500 text-sm"
+                >
+                  {error}
+                </td>
+              </tr>
+            ) : paginated.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="py-8 text-center text-gray-400 text-sm"
+                >
+                  Nenhum pedido encontrado.
+                </td>
+              </tr>
+            ) : (
+              paginated.map((order) => {
+                const total = order.orderItems?.reduce(
+                  (sum, item) => sum + item.price * item.quantity,
+                  0
+                );
+
+                const itensLabel =
+                  order.orderItems
+                    ?.map(
+                      (item) =>
+                        `${item.quantity}x ${
+                          item.menuItem?.name ?? "Item sem nome"
+                        }`
+                    )
+                    .join(" • ") ?? "-";
+
+                return (
+                  <tr
+                    key={order.id}
+                    className="border-t border-[#f3f3ff] hover:bg-[#fafaff] transition"
+                  >
+                    <td className="py-3 px-4 font-semibold text-gray-800 whitespace-nowrap">
+                      #{order.id}
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-[#eef2ff] text-[#4c51bf] text-xs font-medium">
+                        Mesa {order.tableNumber ?? "-"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 max-w-[320px]">
+                      <p className="text-xs text-gray-700 truncate">
+                        {itensLabel}
+                      </p>
+                    </td>
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <span className="font-semibold text-[#6b46ff]">
+                        R$ {total?.toFixed(2) ?? "0,00"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {isPendentes ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#fef3c7] text-[#92400e] text-[11px] font-semibold">
+                          Pendente
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#dcfce7] text-[#166534] text-[11px] font-semibold">
+                          Concluído
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {isPendentes ? (
+                        <button
+                          onClick={() => onComplete(order.id)}
+                          className="inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] shadow hover:brightness-110 transition"
+                        >
+                          Marcar como pronto
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">
+                          —
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* paginação */}
+      <div className="flex items-center justify-between mt-4 text-xs text-gray-600">
+        <button
+          className="px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition"
+          disabled={page <= 1}
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+        >
+          ← Anterior
+        </button>
+        <span>
+          Página <span className="font-semibold">{page}</span> de{" "}
+          <span className="font-semibold">{totalPages}</span>
+        </span>
+        <button
+          className="px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition"
+          disabled={page >= totalPages}
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+          Próxima →
+        </button>
       </div>
     </div>
   );
