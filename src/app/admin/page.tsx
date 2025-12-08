@@ -559,9 +559,9 @@ export default function AdminDashboard() {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <Card
-                    title="Pedidos Ativos"
+                    title="Pedidos Na Cozinha"
                     icon={<Clock className="text-[#fb923c]" />}
-                    value={`${stats.liveOrders} ativas`}
+                    value={`${stats.liveOrders} em preparo`}
                     subtitle={`Tempo médio de preparo: ${stats.avgPrep} min`}
                   />
                   <Card
