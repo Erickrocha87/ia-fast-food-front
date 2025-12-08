@@ -10,9 +10,7 @@ interface ServeAIRealtimeVoiceProps {
   tableNumber?: string;
 }
 
-// ============================================================
-// (OPCIONAL) ESTIMATIVA DE TOKENS PELO TEXTO – FALBACK
-// ============================================================
+// (Opcional) estimativa de tokens – segue igual
 function estimateTokensFromText(text: string): number {
   if (!text) return 0;
   const trimmed = text.trim();
@@ -32,6 +30,10 @@ export default function ServeAIRealtimeVoice({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menu, setMenu] = useState<any[]>([]);
 
+  // itens pendentes da parse_items_from_speech
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pendingItemsRef = useRef<any[]>([]);
+
   // ============================================================
   // 1) CARREGAR CARDÁPIO UMA VEZ
   // ============================================================
@@ -46,74 +48,113 @@ export default function ServeAIRealtimeVoice({
   }, []);
 
   // ============================================================
-  // 2) SYSTEM PROMPT FINAL
+  // 2) SYSTEM PROMPT (REFORÇADO Anti-alucinação)
   // ============================================================
   function buildSystemPrompt() {
+    // opcional: reduzir só para campos relevantes
+    const safeMenu = menu.map((m) => ({
+      id: m.id,
+      name: m.name,
+      price: m.price,
+      description: m.description,
+    }));
+
     return `
-Você é o ATENDENTE VIRTUAL do restaurante.
-Fale SEMPRE em português do Brasil, de forma educada, curta e objetiva.
+Você é o ATENDENTE VIRTUAL de um restaurante REAL.
+Fale SEMPRE em português do Brasil, de forma educada, CURTA e objetiva.
 
 =====================================================================
-REGRAS ABSOLUTAS (NÃO QUEBRAR)
+REGRAS ABSOLUTAS (NÃO QUEBRAR EM HIPÓTESE ALGUMA)
 =====================================================================
-1. Não invente itens, preços, promoções ou quantidades.
-2. NÃO execute tools sem intenção CLARA do cliente.
-3. NÃO execute tools baseadas em frases vagas como:
-   - "beleza"
-   - "ok"
-   - "tranquilo"
-   - "qualquer coisa eu chamo"
-   - "tudo bem"
-   - "pode ser"
-   - "tá bom"
-   Essas frases NÃO indicam intenção → responda cordialmente sem executar tool.
-4. Se o cliente cumprimentar ("boa tarde", "oi", etc.), responda normalmente.
-5. Só acione ferramentas quando:
-   - houver um item do cardápio mencionado
-   - houver um verbo de ação claro ("quero", "adicionar", "coloca", "remove")
+1. NUNCA invente itens, preços, promoções, combos ou tamanhos.
+2. Só considere como válidos os itens cujo "name" está na lista de cardápio abaixo.
+   - Se o cliente pedir algo que NÃO esteja no cardápio → responda:
+     "Não encontrei esse item no nosso cardápio, poderia escolher outro?"
+3. Não chute quantidades. Se não estiver claro, pergunte:
+   "Quantas unidades desse item você deseja?"
+4. NÃO execute tools com base em frases vagas, por exemplo:
+   - "beleza", "ok", "tranquilo", "qualquer coisa eu chamo",
+     "tudo bem", "pode ser", "tá bom".
+   Nessas situações, apenas responda cordialmente, sem chamar tools.
+5. Se o cliente apenas cumprimentar ("boa tarde", "oi", "olá", etc.),
+   responda normalmente sem tools.
+6. SE NÃO TIVER CERTEZA, PERGUNTE. NUNCA assuma nada sozinho.
 
 =====================================================================
-DETECÇÃO DE INTENÇÕES
+USO DAS TOOLS (INTENÇÕES)
 =====================================================================
 
-1) list_menu_items → Use quando cliente pedir:
+1) list_menu_items
+   Use quando o cliente pedir para ver opções, por exemplo:
    - “me mostra o cardápio”
    - “quais são as pizzas?”
    - “quais são as bebidas?”
    - “mostrar cardápio geral”
-   • Se pedir cardápio geral → query ""
-   • Se citar categoria → query com a categoria
+   • Se pedir cardápio geral → query "".
+   • Se citar categoria → use o nome da categoria em query.
 
-2) add_to_order → Use SOMENTE quando:
-   - houver item do cardápio citado PELO NOME
-   - houver verbo claro: “coloca”, “adiciona”, “quero”, “pode trazer”
+2) parse_items_from_speech
+   Use quando o cliente pedir MÚLTIPLOS itens em uma mesma fala, por exemplo:
+   - "quero um hambúrguer e uma pizza"
+   - "me traz duas cokes e uma batata"
+   Procedimento obrigatório:
+   a) Chame parse_items_from_speech com o texto do cliente.
+   b) Aguarde o resultado.
+   c) CONFIRME com o cliente tudo o que foi detectado:
+      "Detectei 1x hambúrguer e 1x pizza. Está correto?"
+   d) SOMENTE SE o cliente confirmar (sim, ok, isso mesmo),
+      chame add_to_order item por item.
+   e) Se o cliente disser "não", "nao" ou corrigir, siga a correção.
 
-3) remove_from_order → Use SOMENTE quando:
-   - o cliente citar item + verbo “remover”, “tirar”, “sem”
+3) add_to_order
+   Use SOMENTE quando:
+   - houver item do cardápio citado PELO NOME (existente no cardápio),
+   - houver verbo claro de ação: “quero”, “coloca”, “adiciona”,
+     “pode trazer”, “manda”, “traz pra mim”.
+   Nunca chame add_to_order baseado apenas em "beleza", "pode ser", etc.
 
-4) get_order_summary → Use quando perguntar:
+4) remove_from_order
+   Use SOMENTE quando:
+   - o cliente citar um item já pedido
+   - e usar verbos de remover: “tirar”, “remover”, “sem”, “cancelar esse item”.
+
+5) get_order_summary
+   Use quando o cliente perguntar sobre o pedido ou total:
    - “qual o total?”
    - “quanto deu?”
    - “me diz o total”
+   - “como está o meu pedido?”
+
+6) finalize_order
+   Use QUANDO o cliente claramente encerrar o pedido, por exemplo:
+   - "pode fechar o pedido"
+   - "pode enviar pra cozinha"
+   - "pode mandar pra cozinha"
+   - "é isso, obrigado"
+   AO usar finalize_order para a mesa atual:
+   - Considere que o pedido foi enviado para a cozinha.
+   - Não adicione nem remova mais itens automaticamente sem o cliente pedir.
 
 =====================================================================
-PROTOCOLO OBRIGATÓRIO
+PROTOCOLO OBRIGATÓRIO ANTES/DEPOIS DE TOOLS
 =====================================================================
-1. Antes de tool → Fale UMA frase curta:
-   - "Claro, vou adicionar."
-   - "Perfeito, vou remover."
-   - "Um instante, vou verificar."
-   - "Vou te mostrar."
+1. Antes de chamar qualquer tool, faça UMA frase curta explicando:
+   - "Claro, vou adicionar para você."
+   - "Perfeito, vou remover esse item."
+   - "Um instante, vou verificar o total."
+   - "Vou te mostrar as opções."
 
-2. Após tool:
-   - Use exatamente o texto retornado pela ferramenta.
-   - Nunca altere valores.
-   - Termine com: “Deseja mais alguma coisa?”
+2. Depois de receber o resultado da tool:
+   - Use fielmente o texto e valores retornados (sem alterar números).
+   - Termine com: “Deseja mais alguma coisa?”,
+     EXCETO quando usar finalize_order, onde você pode encerrar com:
+     "Seu pedido foi enviado para a cozinha. Obrigado!"
 
 =====================================================================
-CARDÁPIO OFICIAL (NÃO INVENTAR NADA)
+CARDÁPIO OFICIAL (NÃO INVENTAR NADA FORA DISSO)
+Use APENAS o campo "name" como nome do item ao falar com o cliente.
 =====================================================================
-${JSON.stringify(menu, null, 2)}
+${JSON.stringify(safeMenu, null, 2)}
 `;
   }
 
@@ -139,6 +180,7 @@ ${JSON.stringify(menu, null, 2)}
       setStatus("Escutando");
       console.log("🟢 Canal WebRTC aberto!");
 
+      // injeta instruções reforçadas
       send({
         type: "session.update",
         session: {
@@ -150,7 +192,8 @@ ${JSON.stringify(menu, null, 2)}
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
-          instructions: "Atenda o cliente normalmente.",
+          instructions:
+            "Cumprimente o cliente e se coloque à disposição para anotar o pedido.",
         },
       });
     };
@@ -199,6 +242,7 @@ ${JSON.stringify(menu, null, 2)}
       mic.current?.getTracks().forEach((t) => t.stop());
     } catch {}
 
+    pendingItemsRef.current = [];
     eventBus.emit("ia:stop", null);
   }
 
@@ -233,14 +277,88 @@ ${JSON.stringify(menu, null, 2)}
 
     console.log("📩 EVENTO IA (parseado):", ev);
 
-    // ========================================================
-    // 5.1 TRANSCRIPT FINAL (response.audio_transcript.done)
-    // ========================================================
+    // 5.1 Transcript final
     if (ev.type === "response.audio_transcript.done" && ev.transcript) {
       const transcript: string = ev.transcript;
       console.log("📝 Transcript final:", transcript);
 
-      // salva resumo no backend (não mexe em tokens aqui)
+      // se temos itens pendentes, usa esse transcript como confirmação
+      if (pendingItemsRef.current.length > 0) {
+        const t = transcript.toLowerCase();
+
+        const isYes =
+          t.includes("sim") ||
+          t.includes("pode") ||
+          t.includes("claro") ||
+          t.includes("isso mesmo") ||
+          t.includes("tá certo") ||
+          t.includes("ta certo") ||
+          t.includes("ok");
+
+        const isNo =
+          t.includes("não") ||
+          t.includes("nao") ||
+          t.includes("corrigir") ||
+          t.includes("mudar");
+
+        if (isYes) {
+          const items = [...pendingItemsRef.current];
+          pendingItemsRef.current = [];
+
+          for (const item of items) {
+            const args = {
+              tableNumber,
+              menuItemId: item.menuItemId,
+              quantity: item.quantity ?? 1,
+            };
+
+            try {
+              const toolResponse = await fetch(
+                "http://localhost:1337/tool-call",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: "add_to_order", args }),
+                }
+              ).then((r) => r.json());
+
+              eventBus.emit("pedido:add", {
+                id: args.menuItemId,
+                name: item.name,
+                quantity: args.quantity,
+              });
+
+              console.log("✅ add_to_order múltiplo:", toolResponse);
+            } catch (err) {
+              console.error("Erro ao adicionar item múltiplo:", err);
+            }
+          }
+
+          send({
+            type: "response.create",
+            response: {
+              modalities: ["audio", "text"],
+              instructions:
+                "Perfeito, adicionei todos os itens ao seu pedido. Deseja mais alguma coisa?",
+            },
+          });
+        } else if (isNo) {
+          pendingItemsRef.current = [];
+
+          send({
+            type: "response.create",
+            response: {
+              modalities: ["audio", "text"],
+              instructions:
+                "Tudo bem, não adicionei esses itens. Pode me dizer novamente o que você deseja?",
+            },
+          });
+        }
+
+        // segue fluxo normal de salvar transcript
+      }
+
+      // salva resumo no backend (summary)
       fetch("http://localhost:1337/transcript", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -248,9 +366,7 @@ ${JSON.stringify(menu, null, 2)}
       }).catch(() => {});
     }
 
-    // ========================================================
-    // 5.2 TOKEN USAGE REAL (response.done → response.usage)
-    // ========================================================
+    // 5.2 Uso de tokens
     if (ev.type === "response.done" && ev.response?.usage) {
       const usage = ev.response.usage;
       const usageTokens =
@@ -282,9 +398,7 @@ ${JSON.stringify(menu, null, 2)}
       }
     }
 
-    // ========================================================
-    // 5.3 CHAMADA DE TOOL
-    // ========================================================
+    // 5.3 Tools
     if (ev.type === "response.function_call_arguments.done") {
       const toolName = ev.name;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -304,10 +418,59 @@ ${JSON.stringify(menu, null, 2)}
         body: JSON.stringify({ name: toolName, args }),
       }).then((r) => r.json());
 
+      // parse_items_from_speech → guardar itens e pedir confirmação
+      if (toolName === "parse_items_from_speech") {
+        const items = toolResponse?.result?.items ?? [];
+        console.log("🧩 ITENS PARSEADOS PELA TOOL:", items);
+
+        pendingItemsRef.current = items;
+
+        if (items.length === 0) {
+          send({
+            type: "response.create",
+            response: {
+              modalities: ["audio", "text"],
+              instructions:
+                "Não consegui identificar itens do cardápio na sua frase. Pode repetir dizendo o nome dos itens exatamente como estão no cardápio?",
+            },
+          });
+          return;
+        }
+
+        const lista = items
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map(
+            (m: any) => `${m.quantity ?? 1}x ${m.name ?? "item do cardápio"}`
+          )
+          .join(", ");
+
+        send({
+          type: "response.create",
+          response: {
+            modalities: ["audio", "text"],
+            instructions: `Detectei os seguintes itens: ${lista}. Posso adicionar todos ao seu pedido?`,
+          },
+        });
+
+        return;
+      }
+
+      // finalize_order → limpar carrinho no front
+      if (toolName === "finalize_order") {
+        pendingItemsRef.current = [];
+        eventBus.emit("pedido:clear", null);
+      }
+
+      // add_to_order / remove_from_order → atualizar carrinho
       if (toolName === "add_to_order") {
         eventBus.emit("pedido:add", {
           id: args.menuItemId,
           quantity: args.quantity ?? 1,
+        });
+
+        console.log("🛒 EMIT pedido:add (multi):", {
+          id: args.menuItemId,
+          quantity: args.quantity,
         });
       }
 
@@ -336,7 +499,9 @@ ${JSON.stringify(menu, null, 2)}
         response: {
           modalities: ["audio", "text"],
           instructions:
-            "Use o resultado enviado e responda ao cliente educadamente.",
+            toolName === "finalize_order"
+              ? "Use a mensagem da ferramenta para informar que o pedido foi enviado para a cozinha, agradeça e se despeça de forma educada."
+              : "Use o resultado enviado e responda ao cliente educadamente.",
         },
       });
     }

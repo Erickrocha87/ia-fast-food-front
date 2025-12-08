@@ -37,20 +37,37 @@ export default function PedidoIA() {
   }, []);
 
   useEffect(() => {
-    const add = (itemIA) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const add = (itemIA: any) => {
       const menuItem = itensMenu.find((m) => m.id === itemIA.id);
       if (!menuItem) return;
+
+      // pega tanto "quantity" (da IA) quanto "quantidade" (fallback)
+      const quantidade =
+        typeof itemIA.quantity === "number"
+          ? itemIA.quantity
+          : typeof itemIA.quantidade === "number"
+          ? itemIA.quantidade
+          : 1;
 
       adicionarCarrinho({
         id: menuItem.id,
         name: menuItem.name,
         price: menuItem.price,
-        quantidade: itemIA.quantidade ?? 1,
+        quantidade,
       });
     };
 
-    const remove = (itemIA) => {
-      removerQuantidade(itemIA.id, itemIA.quantidade ?? 1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const remove = (itemIA: any) => {
+      const quantidade =
+        typeof itemIA.quantity === "number"
+          ? itemIA.quantity
+          : typeof itemIA.quantidade === "number"
+          ? itemIA.quantidade
+          : 1;
+
+      removerQuantidade(itemIA.id, quantidade);
     };
 
     const clear = () => setItensCarrinho([]);
@@ -66,7 +83,8 @@ export default function PedidoIA() {
     };
   }, [itensMenu]);
 
-  function adicionarCarrinho(item) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function adicionarCarrinho(item: any) {
     setItensCarrinho((prev) => {
       const existe = prev.find((i) => i.id === item.id);
 
@@ -82,7 +100,7 @@ export default function PedidoIA() {
     });
   }
 
-  function removerQuantidade(id, qtd = 1) {
+  function removerQuantidade(id: number, qtd = 1) {
     setItensCarrinho((prev) =>
       prev
         .map((i) =>
@@ -92,7 +110,7 @@ export default function PedidoIA() {
     );
   }
 
-  function removerDoCarrinho(id) {
+  function removerDoCarrinho(id: number) {
     setItensCarrinho((prev) => prev.filter((i) => i.id !== id));
   }
 
