@@ -10,6 +10,17 @@ interface ServeAIRealtimeVoiceProps {
   tableNumber?: string;
 }
 
+// ============================================================
+// (OPCIONAL) ESTIMATIVA DE TOKENS PELO TEXTO – FALBACK
+// ============================================================
+function estimateTokensFromText(text: string): number {
+  if (!text) return 0;
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  const words = trimmed.split(/\s+/).length;
+  return Math.max(1, Math.round(words * 1.3 * 2));
+}
+
 export default function ServeAIRealtimeVoice({
   tableNumber = "12",
 }: ServeAIRealtimeVoiceProps) {
@@ -117,16 +128,13 @@ ${JSON.stringify(menu, null, 2)}
 
     setStatus("Conectando");
 
-    // 3.1 Buscar client_secret
     const session = await fetch("http://localhost:1337/session").then((r) =>
       r.json()
     );
 
-    // 3.2 Criar conexões
     pc.current = new RTCPeerConnection();
     dc.current = pc.current.createDataChannel("oai-events");
 
-    // 3.3 Canal aberto
     dc.current.onopen = () => {
       setStatus("Escutando");
       console.log("🟢 Canal WebRTC aberto!");
@@ -149,20 +157,17 @@ ${JSON.stringify(menu, null, 2)}
 
     dc.current.onmessage = handleEvent;
 
-    // 3.4 áudio retornado pela IA
     const audio = new Audio();
     audio.autoplay = true;
     pc.current.ontrack = (event) => {
       audio.srcObject = event.streams[0];
     };
 
-    // 3.5 microfone
     mic.current = await navigator.mediaDevices.getUserMedia({ audio: true });
     mic.current
       .getTracks()
       .forEach((t) => pc.current!.addTrack(t, mic.current!));
 
-    // 3.6 handshake WebRTC
     const offer = await pc.current.createOffer();
     await pc.current.setLocalDescription(offer);
 
@@ -211,26 +216,75 @@ ${JSON.stringify(menu, null, 2)}
   // 5) EVENTOS DA IA (FINAL)
   // ============================================================
   async function handleEvent(msg: MessageEvent) {
+    console.log("💬 MSG BRUTA DO DATACHANNEL:", msg.data);
+
+    if (typeof msg.data !== "string") {
+      return;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ev: any;
     try {
       ev = JSON.parse(msg.data);
-    } catch {
+    } catch (err) {
+      console.error("❌ Erro ao fazer JSON.parse em msg.data:", err, msg.data);
       return;
     }
 
-    console.log("📩 EVENTO IA:", ev);
+    console.log("📩 EVENTO IA (parseado):", ev);
 
-    // SALVAR TEXTO FINAL NO BACKEND
-    if (ev.type === "response.text.done" && ev.text) {
+    // ========================================================
+    // 5.1 TRANSCRIPT FINAL (response.audio_transcript.done)
+    // ========================================================
+    if (ev.type === "response.audio_transcript.done" && ev.transcript) {
+      const transcript: string = ev.transcript;
+      console.log("📝 Transcript final:", transcript);
+
+      // salva resumo no backend (não mexe em tokens aqui)
       fetch("http://localhost:1337/transcript", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tableNumber, text: ev.text }),
+        body: JSON.stringify({ tableNumber, text: transcript }),
       }).catch(() => {});
     }
 
-    // CHAMADA DE TOOL
+    // ========================================================
+    // 5.2 TOKEN USAGE REAL (response.done → response.usage)
+    // ========================================================
+    if (ev.type === "response.done" && ev.response?.usage) {
+      const usage = ev.response.usage;
+      const usageTokens =
+        usage.total_tokens ??
+        (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0);
+
+      console.log("📊 USO REAL DE TOKENS DO MODELO:", usage);
+
+      if (usageTokens && usageTokens > 0) {
+        const token =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem("token")
+            : null;
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        fetch("http://localhost:1337/usage/tokens", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ tokens: usageTokens }),
+        }).catch((err) => {
+          console.error("Erro ao registrar uso de tokens:", err);
+        });
+      }
+    }
+
+    // ========================================================
+    // 5.3 CHAMADA DE TOOL
+    // ========================================================
     if (ev.type === "response.function_call_arguments.done") {
       const toolName = ev.name;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,7 +304,6 @@ ${JSON.stringify(menu, null, 2)}
         body: JSON.stringify({ name: toolName, args }),
       }).then((r) => r.json());
 
-      // 🔥🔥 EMITE EVENTO DE ATUALIZAÇÃO AO FRONT
       if (toolName === "add_to_order") {
         eventBus.emit("pedido:add", {
           id: args.menuItemId,
@@ -269,7 +322,6 @@ ${JSON.stringify(menu, null, 2)}
         toolResponse?.message ||
         JSON.stringify(toolResponse?.result || toolResponse);
 
-      // 1) Entregar resultado pro modelo
       send({
         type: "conversation.item.create",
         item: {
@@ -279,7 +331,6 @@ ${JSON.stringify(menu, null, 2)}
         },
       });
 
-      // 2) Pedir continuação em áudio
       send({
         type: "response.create",
         response: {

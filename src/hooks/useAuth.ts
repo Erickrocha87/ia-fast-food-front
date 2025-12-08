@@ -62,38 +62,47 @@ export function useRegister() {
 }
 
 export function useLogin() {
-  const router = useRouter();
-
   async function login({ email, password }: LoginPayload) {
-    const res = await fetch("http://localhost:1337/auth/login", {
+    // 1) LOGIN
+    const res = await fetch("http://localhost:1337/login", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
 
     if (!res.ok) {
-      throw new Error(data.error || "Credenciais inválidas");
+      const msg = data?.error || "Credenciais inválidas";
+      throw new Error(msg);
     }
 
-    // salva token
-    localStorage.setItem("token", data.token);
+    const token = data?.token;
+    if (!token) {
+      throw new Error("Erro ao autenticar: token não retornado pelo servidor.");
+    }
 
-    // checa assinatura
-    const subRes = await fetch("http://localhost:1337/me/subscription", {
-      headers: {
-        Authorization: `Bearer ${data.token}`,
-      },
-    });
+    localStorage.setItem("token", token);
 
-    const subData = await subRes.json();
+    // 2) CHECAR ASSINATURA
+    try {
+      const subRes = await fetch("http://localhost:1337/me/subscription", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    const hasSubscription = subData.active === true;
+      const subData = await subRes.json().catch(() => null);
 
-    return { hasSubscription };
+      if (!subRes.ok) {
+        // se der erro aqui, só consideramos como "sem assinatura"
+        return { hasSubscription: false };
+      }
+
+      const hasSubscription = subData?.active === true;
+      return { hasSubscription };
+    } catch (err) {
+      console.error("Erro ao consultar /me/subscription:", err);
+      return { hasSubscription: false };
+    }
   }
 
   return { login };

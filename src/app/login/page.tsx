@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/Botao";
 import { useLogin } from "@/hooks/useAuth";
 
@@ -16,23 +17,32 @@ export default function LoginPage() {
     event.preventDefault();
 
     try {
-      const result = await login({ email, password });
+      const { hasSubscription } = await login({ email, password });
 
-      if (result.hasSubscription) {
-        // já tem plano → vai direto pro painel
-        router.push("/admin");
-      } else {
-        // não tem plano → 1º acesso "prático" → vai pra escolher plano
-        router.push("/planos");
-      }
-    } catch (err) {
-      console.error("Erro no login:", err);
-      // aqui se quiser colocar um toast de erro depois
+      toast.success("Login realizado com sucesso! 🚀", {
+        duration: 2500,
+      });
+
+      // dá um tempinho pro toast aparecer e já redireciona
+      setTimeout(() => {
+        if (hasSubscription) {
+          router.push("/admin");
+        } else {
+          router.push("/planos");
+        }
+      }, 500);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error("Erro ao logar:", error);
+      toast.error(error?.message || "Erro ao fazer login. Tente novamente.");
     }
   };
 
   return (
     <div className="w-full h-screen flex overflow-hidden bg-[#f5f6ff]">
+      {/* TOASTER GLOBAL DA PÁGINA */}
+      <Toaster position="top-right" />
+
       {/* LADO ESQUERDO */}
       <div className="hidden md:flex w-1/2 h-full bg-gradient-to-br from-[#7b4fff] via-[#a855f7] to-[#3b82f6] items-center justify-center text-white relative">
         <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_20%,#ffffff33,transparent_70%),radial-gradient(circle_at_80%_80%,#ffffff22,transparent_60%)]" />
@@ -54,7 +64,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* LADO DIREITO / FORM */}
+      {/* FORMULÁRIO DE LOGIN */}
       <div className="w-full md:w-1/2 h-full bg-white flex flex-col">
         <div className="px-10 pt-10 flex items-center gap-4">
           <div className="flex items-center justify-center">

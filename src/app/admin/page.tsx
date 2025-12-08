@@ -6,11 +6,30 @@ import {
   DollarSign,
   Clock,
   LayoutGrid,
+  RefreshCw,
+  Search,
 } from "lucide-react";
 import { Icon } from "@iconify/react";
 import { jwtDecode } from "jwt-decode";
 import { useUser } from "@/hooks/useUser";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+
+interface MyToken {
+  id: number;
+  userName: string;
+  email: string;
+  role: string;
+}
+
+interface SubscriptionData {
+  active: boolean;
+  plan?: string;
+  tokensLimit?: number;
+  tokensUsed?: number;
+  tokensRemaining?: number;
+  cycleStart?: string;
+  cycleEnd?: string;
+}
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("geral");
@@ -35,15 +54,13 @@ export default function AdminDashboard() {
     newCustomers: 0,
   });
 
-  interface MyToken {
-    id: number;
-    userName: string;
-    email: string;
-    role: string;
-  }
-
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
+
+  // Assinatura
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(
+    null
+  );
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -108,6 +125,57 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
+  // =====================================================
+  // 🔁 BUSCAR ASSINATURA REAL DO USUÁRIO (COM POLLING)
+  // =====================================================
+  async function fetchSubscription() {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setSubscription({ active: false });
+        return;
+      }
+
+      const res = await fetch("http://localhost:1337/me/subscription", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      console.log("📦 /me/subscription:", data);
+
+      if (!data || data.active === false) {
+        setSubscription({ active: false });
+      } else {
+        setSubscription({
+          active: true,
+          plan: data.plan,
+          tokensLimit: data.tokensLimit,
+          tokensUsed: data.tokensUsed,
+          tokensRemaining: data.tokensRemaining,
+          cycleStart: data.cycleStart,
+          cycleEnd: data.cycleEnd,
+        });
+      }
+    } catch (err) {
+      console.error("Erro ao carregar assinatura:", err);
+      setSubscription({ active: false });
+    }
+  }
+
+  useEffect(() => {
+    // chama ao montar
+    fetchSubscription();
+
+    // e depois a cada 10 segundos
+    const interval = setInterval(() => {
+      fetchSubscription();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // ================= PEDIDOS NO DASHBOARD =================
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,6 +208,10 @@ export default function AdminDashboard() {
         }),
       ]);
 
+      if (!resPend.ok || !resComp.ok) {
+        throw new Error("Erro ao buscar pedidos");
+      }
+
       const [dataPend, dataComp] = await Promise.all([
         resPend.json(),
         resComp.json(),
@@ -148,6 +220,7 @@ export default function AdminDashboard() {
       setOrdersPending(dataPend);
       setOrdersCompleted(dataComp);
     } catch (err) {
+      console.error(err);
       setOrdersError("Erro ao buscar pedidos");
     } finally {
       setOrdersLoading(false);
@@ -171,7 +244,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // carrega pedidos ao abrir o dashboard
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -180,6 +252,38 @@ export default function AdminDashboard() {
 
   if (!isReady) {
     return null;
+  }
+
+  const planoAtivo = subscription?.active === true;
+  const nomePlano = planoAtivo
+    ? subscription?.plan ?? "Plano ativo"
+    : "Sem plano";
+  const tokensTexto = planoAtivo
+    ? `${subscription?.tokensUsed ?? 0}/${
+        subscription?.tokensLimit ?? 0
+      } tokens`
+    : "0/0 tokens";
+
+  let tokensUsedPercent = 0;
+  let tokensRemainingPercent = 0;
+  let renewalPercent = 0;
+
+  if (planoAtivo && subscription?.tokensLimit && subscription.tokensLimit > 0) {
+    tokensUsedPercent =
+      ((subscription.tokensUsed ?? 0) / subscription.tokensLimit) * 100;
+
+    tokensRemainingPercent =
+      ((subscription.tokensRemaining ?? 0) / subscription.tokensLimit) * 100;
+  }
+
+  if (planoAtivo && subscription?.cycleStart && subscription?.cycleEnd) {
+    const start = new Date(subscription.cycleStart).getTime();
+    const end = new Date(subscription.cycleEnd).getTime();
+    const now = Date.now();
+
+    if (end > start) {
+      renewalPercent = ((now - start) / (end - start)) * 100;
+    }
   }
 
   return (
@@ -226,27 +330,52 @@ export default function AdminDashboard() {
           ))}
         </nav>
 
+        {/* CARD DO PLANO USANDO DADOS REAIS */}
         <div className="bg-black/10 rounded-2xl p-4 shadow-lg backdrop-blur-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70 mb-1">
-            Sem plano
+            {planoAtivo ? "Plano atual" : "Sem plano"}
           </p>
-          <h3 className="text-base font-semibold mb-3">Teste grátis</h3>
+          <h3 className="text-base font-semibold mb-3">
+            {planoAtivo ? nomePlano : "Teste grátis"}
+          </h3>
 
           <div className="space-y-2 mb-4 text-[11px]">
-            <ProgressLine label="Pedidos com IA" value="0/50" />
-            <ProgressLine label="Mesas simultâneas" value="0/5" />
-            <ProgressLine label="Usuários" value="0/3" />
+            <ProgressLine
+              label="Uso de tokens"
+              value={tokensTexto}
+              percent={tokensUsedPercent}
+            />
+
+            <ProgressLine
+              label="Tokens restantes"
+              value={`${subscription?.tokensRemaining ?? 0}`}
+              percent={tokensRemainingPercent}
+            />
+
+            {/* Renovação sem progress bar */}
+            <div>
+              <div className="flex justify-between text-[10px] mb-1">
+                <span>Renovação</span>
+                <span>
+                  {planoAtivo && subscription?.cycleEnd
+                    ? new Date(subscription.cycleEnd).toLocaleDateString(
+                        "pt-BR"
+                      )
+                    : "-"}
+                </span>
+              </div>
+            </div>
           </div>
 
           <button className="w-full text-xs font-semibold bg-white text-[#7b4fff] rounded-full py-2 shadow hover:bg-[#f6f3ff] transition">
-            ASSINAR AGORA
+            {planoAtivo ? "Gerenciar plano" : "ASSINAR AGORA"}
           </button>
         </div>
 
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-sm font-medium">
-              E
+              {userName?.charAt(0) || "U"}
             </div>
             <div className="text-xs">
               <p className="font-semibold">{userName}</p>
@@ -264,7 +393,9 @@ export default function AdminDashboard() {
           <div>
             <p className="text-xs text-gray-400">
               Plano{" "}
-              <span className="text-[#7b4fff] font-medium">teste grátis</span>
+              <span className="text-[#7b4fff] font-medium">
+                {planoAtivo ? nomePlano : "sem plano ativo"}
+              </span>
             </p>
             <h1 className="text-2xl font-semibold text-gray-900">
               Olá, {userName}
@@ -275,7 +406,7 @@ export default function AdminDashboard() {
               localStorage.removeItem("token");
               window.location.href = "/login";
             }}
-            className="flex items-center gap-1 bg-[#f4f4ff] border border-[#e2e4ff] px-4 py-2 rounded-xl text-xs font-medium text-gray-700 hover:bg-white transition"
+            className="flex items-center gap-1 bg-[#f4f4ff] border border-[#e2e4ff] px-4 py-2 rounded-xl text-xs font-medium text-gray-700 hover:bg:white transition"
           >
             <span>Sair</span>
             <Icon icon="fluent:arrow-exit-20-regular" className="w-4 h-4" />
@@ -313,7 +444,7 @@ export default function AdminDashboard() {
                 </div>
               </section>
 
-              {/* TABELA DE PEDIDOS LOGO ABAIXO */}
+              {/* TABELA DE PEDIDOS */}
               <section className="mt-8">
                 <OrdersTable
                   tab={ordersTab}
@@ -460,7 +591,17 @@ export default function AdminDashboard() {
 
 /* ================= COMPONENTES REUTILIZÁVEIS ================= */
 
-function ProgressLine({ label, value }) {
+function ProgressLine({
+  label,
+  value,
+  percent = 0,
+}: {
+  label: string;
+  value: string | number;
+  percent?: number;
+}) {
+  const safePercent = Math.max(0, Math.min(100, percent));
+
   return (
     <div>
       <div className="flex justify-between text-[10px] mb-1">
@@ -468,13 +609,26 @@ function ProgressLine({ label, value }) {
         <span>{value}</span>
       </div>
       <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
-        <div className="h-full w-1/5 bg-white/70 rounded-full" />
+        <div
+          className="h-full bg-white/80 rounded-full transition-all"
+          style={{ width: `${safePercent}%` }}
+        />
       </div>
     </div>
   );
 }
 
-function Card({ title, icon, value, subtitle }) {
+function Card({
+  title,
+  icon,
+  value,
+  subtitle,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  value: string | number;
+  subtitle: string;
+}) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#ececff] hover:shadow-md transition">
       <div className="flex items-center gap-3 mb-2 text-gray-700">
@@ -487,7 +641,7 @@ function Card({ title, icon, value, subtitle }) {
   );
 }
 
-function UserCard({ name, role }) {
+function UserCard({ name, role }: { name: string; role: string }) {
   return (
     <div className="bg-white border border-[#ececff] rounded-2xl px-5 py-4 flex justify-between items-center shadow-sm hover:shadow-md transition">
       <div className="flex items-center gap-3">
@@ -553,223 +707,178 @@ function OrdersTable({
 
   const isPendentes = tab === "pendentes";
 
+  // helper pra somar total do pedido (se tiver price nos menuItems)
+  const calcTotal = (order: any) => {
+    if (!order.orderItems) return 0;
+    return order.orderItems.reduce((sum: number, item: any) => {
+      const price = item.menuItem?.price ?? 0;
+      const qty = item.quantity ?? 1;
+      return sum + price * qty;
+    }, 0);
+  };
+
   return (
     <div className="bg-white border border-[#e3e0ff] rounded-2xl shadow-sm p-6">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-[#6d4aff]">
-            Pedidos {isPendentes ? "em andamento" : "concluídos"}
-          </h2>
-          <p className="text-xs text-gray-500">
-            Veja rapidamente os pedidos que estão na cozinha ou já foram
-            finalizados.
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setTab("pendentes");
+              setPage(1);
+            }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+              isPendentes
+                ? "bg-[#4f46e5] text-white"
+                : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            Pendentes ({pending.length})
+          </button>
+          <button
+            onClick={() => {
+              setTab("concluidos");
+              setPage(1);
+            }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+              !isPendentes
+                ? "bg-[#4f46e5] text-white"
+                : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            Concluídos ({completed.length})
+          </button>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Toggle Pendentes / Concluídos */}
-          <div className="flex bg-[#f4f4ff] border border-[#e2e4ff] rounded-full p-1 text-xs">
-            <button
-              onClick={() => {
-                setTab("pendentes");
-                setPage(1);
-              }}
-              className={`px-3 py-1 rounded-full transition ${
-                isPendentes
-                  ? "bg-white shadow-sm text-[#6d4aff]"
-                  : "text-gray-500 hover:text-[#6d4aff]"
-              }`}
-            >
-              Pendentes
-            </button>
-            <button
-              onClick={() => {
-                setTab("concluidos");
-                setPage(1);
-              }}
-              className={`px-3 py-1 rounded-full transition ${
-                !isPendentes
-                  ? "bg-white shadow-sm text-[#16a34a]"
-                  : "text-gray-500 hover:text-[#16a34a]"
-              }`}
-            >
-              Concluídos
-            </button>
+        <div className="flex flex-1 sm:flex-none items-center gap-2">
+          <div className="flex-1 relative max-w-xs">
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
+            <input
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Buscar por ID ou mesa"
+              className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#4f46e5]"
+            />
           </div>
-
           <button
             onClick={onRefresh}
-            className="text-xs px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] hover:bg-white transition"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50"
           >
+            <RefreshCw className="w-3.5 h-3.5" />
             Atualizar
           </button>
         </div>
       </div>
 
-      {/* filtros / busca */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-[#f7f7ff] border border-[#e0e0ff] rounded-xl px-3 py-2 text-sm w-full md:w-72">
-            <Icon
-              icon="fluent:search-20-regular"
-              className="w-4 h-4 text-[#7b4fff]"
-            />
-            <input
-              type="text"
-              placeholder="Buscar por pedido ou mesa..."
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="ml-2 bg-transparent outline-none flex-1 text-xs text-gray-700"
-            />
-          </div>
-        </div>
+      {loading ? (
+        <p className="text-sm text-gray-500">Carregando pedidos...</p>
+      ) : error ? (
+        <p className="text-sm text-red-500">{error}</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">
+          Nenhum pedido {isPendentes ? "pendente" : "concluído"} encontrado.
+        </p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[11px] text-gray-500 border-b border-gray-100">
+                  <th className="text-left py-2">ID</th>
+                  <th className="text-left py-2">Mesa</th>
+                  <th className="text-left py-2">Itens</th>
+                  <th className="text-left py-2">Total</th>
+                  <th className="text-left py-2">Criado em</th>
+                  {isPendentes && <th className="text-right py-2">Ações</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map((order) => {
+                  const total = calcTotal(order);
+                  const created =
+                    order.createdAt &&
+                    new Date(order.createdAt).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
 
-        <div className="text-xs text-gray-500">
-          Mostrando{" "}
-          <span className="font-semibold">
-            {filtered.length === 0 ? 0 : (page - 1) * perPage + 1}
-            {" - "}
-            {Math.min(page * perPage, filtered.length)}
-          </span>{" "}
-          de <span className="font-semibold">{filtered.length}</span> pedidos
-        </div>
-      </div>
-
-      {/* tabela */}
-      <div className="overflow-x-auto border border-[#f0f0ff] rounded-2xl">
-        <table className="w-full text-sm">
-          <thead className="bg-[#fafaff] text-xs text-gray-500">
-            <tr className="border-b border-[#ececff]">
-              <th className="text-left py-3 px-4">Pedido</th>
-              <th className="text-left py-3 px-4">Mesa</th>
-              <th className="text-left py-3 px-4">Itens</th>
-              <th className="text-right py-3 px-4">Total</th>
-              <th className="text-center py-3 px-4">Status</th>
-              <th className="text-right py-3 px-4">Ação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="py-8 text-center text-gray-400 text-sm"
-                >
-                  Carregando pedidos...
-                </td>
-              </tr>
-            ) : error ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="py-8 text-center text-red-500 text-sm"
-                >
-                  {error}
-                </td>
-              </tr>
-            ) : paginated.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="py-8 text-center text-gray-400 text-sm"
-                >
-                  Nenhum pedido encontrado.
-                </td>
-              </tr>
-            ) : (
-              paginated.map((order) => {
-                const total = order.orderItems?.reduce(
-                  (sum, item) => sum + item.price * item.quantity,
-                  0
-                );
-
-                const itensLabel =
-                  order.orderItems
-                    ?.map(
-                      (item) =>
-                        `${item.quantity}x ${
-                          item.menuItem?.name ?? "Item sem nome"
+                  const itensResumo = (order.orderItems || [])
+                    .map(
+                      (item: any) =>
+                        `${item.quantity || 1}x ${
+                          item.menuItem?.name || "Item"
                         }`
                     )
-                    .join(" • ") ?? "-";
+                    .join(", ");
 
-                return (
-                  <tr
-                    key={order.id}
-                    className="border-t border-[#f3f3ff] hover:bg-[#fafaff] transition"
-                  >
-                    <td className="py-3 px-4 font-semibold text-gray-800 whitespace-nowrap">
-                      #{order.id}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-[#eef2ff] text-[#4c51bf] text-xs font-medium">
-                        Mesa {order.tableNumber ?? "-"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 max-w-[320px]">
-                      <p className="text-xs text-gray-700 truncate">
-                        {itensLabel}
-                      </p>
-                    </td>
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <span className="font-semibold text-[#6b46ff]">
-                        R$ {total?.toFixed(2) ?? "0,00"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {isPendentes ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#fef3c7] text-[#92400e] text-[11px] font-semibold">
-                          Pendente
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#dcfce7] text-[#166534] text-[11px] font-semibold">
-                          Concluído
-                        </span>
+                  return (
+                    <tr
+                      key={order.id}
+                      className="border-b border-gray-50 last:border-none"
+                    >
+                      <td className="py-2 text-gray-700 font-medium">
+                        #{order.id}
+                      </td>
+                      <td className="py-2 text-gray-700">
+                        {order.tableNumber || "-"}
+                      </td>
+                      <td className="py-2 text-gray-600 max-w-[260px] truncate">
+                        {itensResumo || "Sem itens"}
+                      </td>
+                      <td className="py-2 text-gray-800 font-semibold">
+                        R$ {total.toFixed(2)}
+                      </td>
+                      <td className="py-2 text-gray-500">{created || "-"}</td>
+                      {isPendentes && (
+                        <td className="py-2 text-right">
+                          <button
+                            onClick={() => onComplete(order.id)}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          >
+                            Marcar como pronto
+                          </button>
+                        </td>
                       )}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      {isPendentes ? (
-                        <button
-                          onClick={() => onComplete(order.id)}
-                          className="inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] shadow hover:brightness-110 transition"
-                        >
-                          Marcar como pronto
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-gray-400">
-                          —
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-      {/* paginação */}
-      <div className="flex items-center justify-between mt-4 text-xs text-gray-600">
-        <button
-          className="px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          ← Anterior
-        </button>
-        <span>
-          Página <span className="font-semibold">{page}</span> de{" "}
-          <span className="font-semibold">{totalPages}</span>
-        </span>
-        <button
-          className="px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition"
-          disabled={page >= totalPages}
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-        >
-          Próxima →
-        </button>
-      </div>
+          {/* paginação */}
+          <div className="flex items-center justify-between mt-4 text-[11px] text-gray-500">
+            <span>
+              Página {page} de {totalPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className={`px-2 py-1 rounded-md border ${
+                  page === 1
+                    ? "border-gray-100 text-gray-300 cursor-not-allowed"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Anterior
+              </button>
+              <button
+                disabled={page === totalPages}
+                onClick={() =>
+                  setPage((p) => Math.min(totalPages, p + 1))
+                }
+                className={`px-2 py-1 rounded-md border ${
+                  page === totalPages
+                    ? "border-gray-100 text-gray-300 cursor-not-allowed"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
