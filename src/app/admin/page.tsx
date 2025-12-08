@@ -6,22 +6,39 @@ import {
   DollarSign,
   Clock,
   LayoutGrid,
-  RefreshCw,
-  Search,
 } from "lucide-react";
 import { Icon } from "@iconify/react";
 import { jwtDecode } from "jwt-decode";
-import { useUser } from "@/hooks/useUser";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import toast, { Toaster } from "react-hot-toast";
 
+import { useRouter } from "next/navigation";
 
-interface MyToken {
-  id: number;
-  userName: string;
-  email: string;
-  role: string;
-}
+export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState<"geral" | "mesas" | "cardapio">(
+    "geral"
+  );
+  const { isReady } = useAuthGuard();
+  const router = useRouter();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const [stats, setStats] = useState({
+    liveOrders: 0,
+    avgPrep: 0,
+    revenue: 0,
+    newCustomers: 0,
+  });
+
+  interface MyToken {
+    id: number;
+    userName: string;
+    email: string;
+    role: string;
+  }
 
 interface SubscriptionData {
   active: boolean;
@@ -35,32 +52,19 @@ interface SubscriptionData {
 
 const API = "http://localhost:1337";
 
-export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState("geral");
-  const { isReady } = useAuthGuard();
-  const { users, findAll } = useUser();
-
-  const [menuItems, setMenuItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-
-  const [stats, setStats] = useState({
-    liveOrders: 0,
-    avgPrep: 0,
-    revenue: 0,
-    newCustomers: 0,
-  });
-
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
 
+  type Table = { id: number; name: string; active?: boolean };
+
+  const [tables, setTables] = useState<Table[]>([]);
+  const [tablesLoading, setTablesLoading] = useState(false);
+  const [tablesError, setTablesError] = useState<string | null>(null);
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1337";
   const [subscription, setSubscription] = useState<SubscriptionData | null>(
     null
   );
-
-  useEffect(() => {
-    findAll();
-  }, [findAll]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -71,9 +75,109 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchTables = async () => {
+    try {
+      setTablesLoading(true);
+      setTablesError(null);
+
+      const res = await fetch(`${API_BASE}/tables`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error("Erro HTTP ao buscar mesas");
+      }
+
+      const data = (await res.json()) as Table[];
+      setTables(data);
+    } catch (err) {
+      console.error(err);
+      setTablesError("Erro ao buscar mesas.");
+    } finally {
+      setTablesLoading(false);
+    }
+  };
+
+  const handleAddTable = async () => {
+    const value = window.prompt("Número ou nome da mesa:");
+    if (!value) return;
+
+    const name = value.trim();
+    if (!name) return;
+
+    try {
+      setTablesLoading(true);
+      setTablesError(null);
+
+      const res = await fetch(`${API_BASE}/tables`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+        },
+        body: JSON.stringify({ name }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Erro ao criar mesa.");
+      }
+
+      setTables((prev) => [...prev, data]);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao criar mesa.");
+    } finally {
+      setTablesLoading(false);
+    }
+  };
+
+  const handleRemoveTable = async (id: number) => {
+    const ok = window.confirm("Deseja realmente remover esta mesa?");
+    if (!ok) return;
+
+    try {
+      setTablesLoading(true);
+      setTablesError(null);
+
+      const res = await fetch(`${API_BASE}/tables/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+        },
+      });
+
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Erro ao remover mesa.");
+      }
+
+      setTables((prev) => prev.filter((t) => t.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao remover mesa.");
+    } finally {
+      setTablesLoading(false);
+    }
+  };
+
+  const handleChooseTable = (name: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("serveai:mesaAtual", name);
+    }
+    router.push("/escolher");
+  };
+
+  useEffect(() => {
+    fetchTables();
+  }, []);
+
   const handleDeleteMenuItem = async (id: number) => {
     try {
-      const res = await fetch(`${API}/menu/${id}`, {
+      const res = await fetch(`${API_BASE}/menu/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
@@ -99,21 +203,14 @@ export default function AdminDashboard() {
       setLoading(true);
       setErro(null);
 
-      const res = await fetch(`${API}/menu`, {
+      const res = await fetch(`${API_BASE}/menu`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
         },
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Erro ao buscar cardápio");
-      }
-
       const data = await res.json();
       setMenuItems(data);
     } catch (err) {
-      console.error(err);
       setErro("Erro ao buscar cardápio");
     } finally {
       setLoading(false);
@@ -133,9 +230,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch(`${API}/dashboard/stats`, {
+        const res = await fetch(`${API_BASE}/dashboard/stats`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
         });
 
@@ -201,7 +298,9 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ordersCompleted, setOrdersCompleted] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ordersPaid, setOrdersPaid] = useState<any[]>([]);
   const [ordersTab, setOrdersTab] = useState<"concluidos" | "pagos">(
     "concluidos"
@@ -214,15 +313,15 @@ export default function AdminDashboard() {
       setOrdersLoading(true);
       setOrdersError(null);
 
-      const token = localStorage.getItem("token") ?? "";
+      const token = localStorage.getItem("token");
 
       const [resCompleted, resPaid] = await Promise.all([
-        fetch(`${API}/orders/cashier/completed`, {
+        fetch(`${API_BASE}/orders/cashier/completed`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }),
-        fetch(`${API}/orders/cashier/paid`, {
+        fetch(`${API_BASE}/orders/cashier/paid`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -251,19 +350,23 @@ export default function AdminDashboard() {
   const markOrderPaid = async (id: number) => {
     try {
       setOrdersLoading(true);
-      const token = localStorage.getItem("token") ?? "";
+      const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API}/orders/cashier/${id}/paid`, {
-        method: "PATCH",
+      const res = await fetch(`${API_BASE}/orders/${id}/status`, {
+        method: "PUT",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ status: "READY" }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json();
 
-      if (!res.ok || data.ok === false) {
-        throw new Error(data.error || data.message || "Erro ao marcar como pago");
+      if (!res.ok || data.success === false) {
+        throw new Error(
+          data.error || data.message || "Erro ao marcar pedido como pago"
+        );
       }
 
       await fetchOrders();
@@ -284,7 +387,7 @@ export default function AdminDashboard() {
     return null;
   }
 
-  const planoAtivo = subscription?.active === true;
+   const planoAtivo = subscription?.active === true;
   const nomePlano = planoAtivo
     ? subscription?.plan ?? "Plano ativo"
     : "Sem plano";
@@ -330,17 +433,17 @@ export default function AdminDashboard() {
         <nav className="flex-1 flex flex-col gap-2 text-sm">
           {[
             {
-              id: "geral",
+              id: "geral" as const,
               label: "Dashboard",
               icon: <LayoutGrid className="w-4 h-4" />,
             },
             {
-              id: "usuarios",
-              label: "Usuários",
+              id: "mesas" as const,
+              label: "Mesas",
               icon: <Users className="w-4 h-4" />,
             },
             {
-              id: "cardapio",
+              id: "cardapio" as const,
               label: "Cardápio",
               icon: <UtensilsCrossed className="w-4 h-4" />,
             },
@@ -362,11 +465,9 @@ export default function AdminDashboard() {
 
         <div className="bg-black/10 rounded-2xl p-4 shadow-lg backdrop-blur-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70 mb-1">
-            {planoAtivo ? "Plano atual" : "Sem plano"}
+            Sem plano
           </p>
-          <h3 className="text-base font-semibold mb-3">
-            {planoAtivo ? nomePlano : "Teste grátis"}
-          </h3>
+          <h3 className="text-base font-semibold mb-3">Teste grátis</h3>
 
           <div className="space-y-2 mb-4 text-[11px]">
             <ProgressLine
@@ -398,8 +499,8 @@ export default function AdminDashboard() {
 
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg_WHITE/20 flex items-center justify-center text-sm font-medium bg-white/20">
-              {userName?.charAt(0) || "U"}
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-sm font-medium">
+              {userName?.[0] ?? "U"}
             </div>
             <div className="text-xs">
               <p className="font-semibold">{userName}</p>
@@ -416,9 +517,7 @@ export default function AdminDashboard() {
           <div>
             <p className="text-xs text-gray-400">
               Plano{" "}
-              <span className="text-[#7b4fff] font-medium">
-                {planoAtivo ? nomePlano : "sem plano ativo"}
-              </span>
+              <span className="text-[#7b4fff] font-medium">teste grátis</span>
             </p>
             <h1 className="text-2xl font-semibold text-gray-900">
               Olá, {userName}
@@ -429,7 +528,7 @@ export default function AdminDashboard() {
               localStorage.removeItem("token");
               window.location.href = "/login";
             }}
-            className="flex items-center gap-1 bg-[#f4f4ff] border border-[#e2e4ff] px-4 py-2 rounded-xl text-xs font-medium text-gray-700 hover:bg:white transition"
+            className="flex items-center gap-1 bg-[#f4f4ff] border border-[#e2e4ff] px-4 py-2 rounded-xl text-xs font-medium text-gray-700 hover:bg-white transition"
           >
             <span>Sair</span>
             <Icon icon="fluent:arrow-exit-20-regular" className="w-4 h-4" />
@@ -481,19 +580,52 @@ export default function AdminDashboard() {
           )}
 
           <section className="mt-2">
-            {activeTab === "usuarios" && (
+            {activeTab === "mesas" && (
               <div className="grid gap-6">
-                <h2 className="text-lg font-semibold text-[#6d4aff]">
-                  Gerenciar Usuários
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-[#6d4aff]">
+                    Mesas do Restaurante
+                  </h2>
+                  <button
+                    onClick={handleAddTable}
+                    className="flex items-center gap-2 bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white px-5 py-2 rounded-xl text-xs font-medium shadow-md hover:opacity-90 transition"
+                  >
+                    <Icon
+                      icon="fluent:add-20-filled"
+                      className="w-4 h-4 text-white"
+                    />
+                    Adicionar mesa
+                  </button>
+                </div>
 
-                {users.map((user) => (
-                  <UserCard
-                    key={user.id}
-                    name={user.restaurantName}
-                    role={user.role}
-                  />
-                ))}
+                {tablesLoading && (
+                  <p className="text-sm text-gray-500">Carregando mesas...</p>
+                )}
+
+                {tablesError && (
+                  <p className="text-sm text-red-500">{tablesError}</p>
+                )}
+
+                {!tablesLoading && !tablesError && tables.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    Nenhuma mesa cadastrada ainda. Clique em{" "}
+                    <span className="font-semibold">“Adicionar mesa”</span> para
+                    começar.
+                  </p>
+                )}
+
+                {!tablesLoading && !tablesError && tables.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    {tables.map((t) => (
+                      <TableCard
+                        key={t.id}
+                        label={t.name}
+                        onChoose={() => handleChooseTable(t.name)}
+                        onRemove={() => handleRemoveTable(t.id)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -528,13 +660,13 @@ export default function AdminDashboard() {
                       formData.append("file", file);
 
                       try {
-                        const res = await fetch(`${API}/csv/import`, {
+                        const res = await fetch(`${API_BASE}/csv/import`, {
                           method: "POST",
                           body: formData,
                           headers: {
-                            Authorization: `Bearer ${
-                              localStorage.getItem("token") ?? ""
-                            }`,
+                            Authorization: `Bearer ${localStorage.getItem(
+                              "token"
+                            )}`,
                           },
                         });
 
@@ -630,26 +762,13 @@ function ProgressLine({
         <span>{value}</span>
       </div>
       <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-white/80 rounded-full transition-all"
-          style={{ width: `${safePercent}%` }}
-        />
+        <div className="h-full w-1/5 bg-white/70 rounded-full" />
       </div>
     </div>
   );
 }
 
-function Card({
-  title,
-  icon,
-  value,
-  subtitle,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  value: string | number;
-  subtitle: string;
-}) {
+function Card({ title, icon, value, subtitle }) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#ececff] hover:shadow-md transition">
       <div className="flex items-center gap-3 mb-2 text-gray-700">
@@ -662,21 +781,40 @@ function Card({
   );
 }
 
-function UserCard({ name, role }: { name: string; role: string }) {
+function TableCard({
+  label,
+  onChoose,
+  onRemove,
+}: {
+  label: string;
+  onChoose: () => void;
+  onRemove: () => void;
+}) {
   return (
     <div className="bg-white border border-[#ececff] rounded-2xl px-5 py-4 flex justify-between items-center shadow-sm hover:shadow-md transition">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#a78bfa] to-[#818cf8] flex items-center justify-center text-white font-medium">
-          {name.charAt(0)}
+          {label.charAt(0).toUpperCase()}
         </div>
         <div>
-          <p className="font-medium text-sm">{name}</p>
-          <p className="text-xs text-gray-500">{role}</p>
+          <p className="font-medium text-sm">Mesa {label}</p>
+          <p className="text-xs text-gray-500">
+            Clique em &quot;Escolher&quot; para abrir pedidos.
+          </p>
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <button className="border border-gray-200 rounded-xl px-3 py-1 text-xs hover:bg-gray-50">
-          Editar
+        <button
+          onClick={onChoose}
+          className="border border-[#7c3aed] bg-[#7c3aed] text-white rounded-xl px-3 py-1.5 text-xs hover:bg-[#6d28d9] transition"
+        >
+          Escolher
+        </button>
+        <button
+          onClick={onRemove}
+          className="border border-red-200 text-red-500 rounded-xl px-3 py-1.5 text-xs hover:bg-red-50 transition"
+        >
+          Remover
         </button>
       </div>
     </div>
@@ -723,20 +861,9 @@ function OrdersTable({
     setPage(1);
   };
 
-  const calcTotal = (order: any) => {
-    const fromItems =
-      order.orderItems?.reduce((sum: number, item: any) => {
-        const price = item.menuItem?.price ?? item.price ?? 0;
-        const qty = item.quantity ?? 1;
-        return sum + Number(price) * Number(qty);
-      }, 0) ?? 0;
-
-    return Number(order.total ?? fromItems);
-  };
-
   return (
     <div className="bg-white border border-[#e3e0ff] rounded-2xl shadow-sm p-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-lg font-semibold text-[#6d4aff]">
             Pedidos {isConcluidos ? "concluídos" : "pagos"}
@@ -778,32 +905,43 @@ function OrdersTable({
 
           <button
             onClick={onRefresh}
-            className="text-xs px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] hover:bg-white transition hidden md:inline-flex"
+            className="text-xs px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] hover:bg:white transition"
           >
-            Atualizar
-          </button>
-        </div>
-
-        <div className="flex flex-1 md:flex-none items-center gap-2">
-          <div className="flex-1 relative max-w-xs">
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Buscar por ID ou mesa"
-              className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#4f46e5]"
-            />
-          </div>
-          <button
-            onClick={onRefresh}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50 md:hidden"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
             Atualizar
           </button>
         </div>
       </div>
 
+      {/* filtros / busca */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-[#f7f7ff] border border-[#e0e0ff] rounded-xl px-3 py-2 text-sm w-full md:w-72">
+            <Icon
+              icon="fluent:search-20-regular"
+              className="w-4 h-4 text-[#7b4fff]"
+            />
+            <input
+              type="text"
+              placeholder="Buscar por pedido ou mesa..."
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="ml-2 bg-transparent outline-none flex-1 text-xs text-gray-700"
+            />
+          </div>
+        </div>
+
+        <div className="text-xs text-gray-500">
+          Mostrando{" "}
+          <span className="font-semibold">
+            {filtered.length === 0 ? 0 : (page - 1) * perPage + 1}
+            {" - "}
+            {Math.min(page * perPage, filtered.length)}
+          </span>{" "}
+          de <span className="font-semibold">{filtered.length}</span> pedidos
+        </div>
+      </div>
+
+      {/* tabela */}
       <div className="overflow-x-auto border border-[#f0f0ff] rounded-2xl">
         <table className="w-full text-sm">
           <thead className="bg-[#fafaff] text-xs text-gray-500">
@@ -846,16 +984,20 @@ function OrdersTable({
               </tr>
             ) : (
               paginated.map((order) => {
-                const total = calcTotal(order);
+                const total = order.orderItems?.reduce(
+                  (sum, item) => sum + item.price * item.quantity,
+                  0
+                );
+
                 const itensLabel =
                   order.orderItems
                     ?.map(
-                      (item: any) =>
+                      (item) =>
                         `${item.quantity}x ${
                           item.menuItem?.name ?? "Item sem nome"
                         }`
                     )
-                    .join(", ") ?? "";
+                    .join(" • ") ?? "-";
 
                 return (
                   <tr
@@ -877,7 +1019,7 @@ function OrdersTable({
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <span className="font-semibold text-[#6b46ff]">
-                        R$ {Number(total).toFixed(2)}
+                        R$ {total?.toFixed(2) ?? "0,00"}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -943,3 +1085,4 @@ function OrdersTable({
     </div>
   );
 }
+
