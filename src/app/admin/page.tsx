@@ -52,6 +52,62 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normalizeMenuResponse = (data: any): any[] => {
+    if (!data) return [];
+
+    // Caso clássico: já é um array de itens com name/price
+    if (Array.isArray(data) && data.length > 0) {
+      // Se já vier no formato certo
+      if ("name" in data[0] && "price" in data[0]) {
+        return data;
+      }
+
+      // Caso: array de categorias/menus com .items dentro
+      if ("items" in data[0]) {
+        return data.flatMap((m: any) => m.items || []);
+      }
+    }
+
+    // Caso: objeto com `items`, `menu` ou `data`
+    if (!Array.isArray(data) && typeof data === "object") {
+      if (Array.isArray(data.items)) return data.items;
+      if (Array.isArray(data.menu)) return data.menu;
+      if (Array.isArray(data.data)) return data.data;
+    }
+
+    return [];
+  };
+
+  const handleDeleteMenuItem = async (id: number) => {
+    const confirmDelete = window.confirm(
+      "Tem certeza que deseja remover este item do cardápio?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`http://localhost:1337/menu/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Erro ao deletar item");
+      }
+
+      // Remove do estado sem precisar recarregar tudo
+      setMenuItems((prev) => prev.filter((item) => item.id !== id));
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao deletar item do cardápio.");
+    }
+  };
+
+
   const fetchMenuItems = async () => {
     try {
       setLoading(true);
@@ -59,18 +115,28 @@ export default function AdminDashboard() {
 
       const res = await fetch("http://localhost:1337/menu", {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
         },
       });
-      const data = await res.json();
-      setMenuItems(data);
-      // eslint-disable-next-line no-unused-vars
-    } catch (err) {
-      setErro("Erro ao buscar cardápio");
+
+      if (!res.ok) throw new Error("Erro ao buscar cardápio");
+
+      const raw = await res.json();
+      console.log("🍔 RESPOSTA BRUTA DO /menu:", raw);
+
+      const items = normalizeMenuResponse(raw);
+      console.log("🍔 ITENS NORMALIZADOS:", items);
+
+      // Garante que sempre salva um array
+      setMenuItems(items || []);
+    } catch (err: any) {
+      console.error("Erro ao buscar cardápio:", err);
+      setErro(err.message ?? "Erro ao buscar cardápio");
     } finally {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     if (activeTab === "cardapio") {
@@ -152,11 +218,10 @@ export default function AdminDashboard() {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${
-                activeTab === item.id
-                  ? "bg-white/15 shadow-sm"
-                  : "bg-transparent hover:bg-white/10"
-              }`}
+              className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${activeTab === item.id
+                ? "bg-white/15 shadow-sm"
+                : "bg-transparent hover:bg-white/10"
+                }`}
             >
               {item.icon}
               <span>{item.label}</span>
@@ -316,8 +381,7 @@ export default function AdminDashboard() {
                           throw new Error(data.error || "Erro ao enviar CSV");
 
                         alert(
-                          `✅ Cardápio importado com sucesso!\nItens importados: ${
-                            data.imported || 0
+                          `✅ Cardápio importado com sucesso!\nItens importados: ${data.imported || 0
                           }`
                         );
                         fetchMenuItems();
@@ -363,6 +427,13 @@ export default function AdminDashboard() {
                           <p className="text-sm font-semibold text-[#6d4aff] mt-2">
                             R$ {item.price?.toFixed(2)}
                           </p>
+
+                          <button
+                            onClick={() => handleDeleteMenuItem(item.id)}
+                            className="mt-3 text-xs bg-red-50 text-red-500 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100 transition"
+                          >
+                            Remover
+                          </button>
                         </div>
                       ))}
                     </div>

@@ -32,7 +32,7 @@ export default function CustomerOrderMenu() {
         }
         const data = await res.json();
         setItensMenu(data);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         setErro(err.message);
       } finally {
@@ -81,26 +81,79 @@ export default function CustomerOrderMenu() {
     0
   );
 
-  const confirmarPedido = () => {
-    alert(`Pedido realizado! Total: R$ ${subtotal.toFixed(2)}`);
-    setItensCarrinho([]);
+  const confirmarPedido = async () => {
+    if (itensCarrinho.length === 0) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Usuário não autenticado.");
+        return;
+      }
+
+      // 🌸 1) Criar ou anexar pedido aberto
+      const tableNumber = "BALCAO"; // Pode trocar pra "MANUAL"
+      const resOrder = await fetch("http://localhost:1337/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tableNumber }),
+      });
+
+      const dataOrder = await resOrder.json();
+
+      if (!resOrder.ok || !dataOrder.success || !dataOrder.order) {
+        throw new Error(
+          dataOrder.error || dataOrder.message || "Erro ao criar pedido."
+        );
+      }
+
+      const orderId = dataOrder.order.id;
+
+      // 🌸 2) Adicionar cada item do carrinho
+      for (const item of itensCarrinho) {
+        const payload = {
+          orderId,
+          menuItemId: item.id,
+          quantity: item.quantidade,
+        };
+
+        const resItem = await fetch(
+          "http://localhost:1337/orders/item/add",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        const dataItem = await resItem.json();
+
+        if (!resItem.ok || !dataItem.success) {
+          throw new Error(
+            dataItem.error ||
+            dataItem.message ||
+            "Erro ao adicionar item ao pedido."
+          );
+        }
+      }
+
+      // 🌸 3) Pedido concluído
+      alert(`✨ Pedido enviado! Total: R$ ${subtotal.toFixed(2)}`);
+      setItensCarrinho([]);
+
+    } catch (err: any) {
+      console.error("Erro ao finalizar pedido:", err);
+      alert(err.message || "Erro ao finalizar pedido.");
+    }
   };
 
-  useVoiceCommands(ultimoComando, {
-    adicionar: (nome) => {
-      const item = itensMenu.find((i) =>
-        (i.name || i.nome || "").toLowerCase().includes(nome.toLowerCase())
-      );
-      if (item) adicionarAoCarrinho(item);
-    },
-    remover: (nome) => {
-      const item = itensMenu.find((i) =>
-        (i.name || i.nome || "").toLowerCase().includes(nome.toLowerCase())
-      );
-      if (item) removerDoCarrinho(item.id);
-    },
-    finalizar: confirmarPedido,
-  });
+
 
   const itensFiltrados = itensMenu.filter((item) => {
     const matchCategoria =
@@ -166,11 +219,10 @@ export default function CustomerOrderMenu() {
               <button
                 key={c}
                 onClick={() => setCategoriaSelecionada(c)}
-                className={`px-4 py-2 rounded-full text-sm ${
-                  categoriaSelecionada === c
-                    ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow"
-                    : "bg-white border border-[#dcd8ff] text-[#6b46ff] hover:bg-[#f2efff]"
-                }`}
+                className={`px-4 py-2 rounded-full text-sm ${categoriaSelecionada === c
+                  ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow"
+                  : "bg-white border border-[#dcd8ff] text-[#6b46ff] hover:bg-[#f2efff]"
+                  }`}
               >
                 {c}
               </button>
@@ -347,19 +399,20 @@ export default function CustomerOrderMenu() {
                 onClick={confirmarPedido}
                 disabled={itensCarrinho.length === 0}
                 className="
-                  w-full py-4 rounded-xl
-                  flex items-center justify-center gap-2
-                  font-medium text-white
-                  shadow-lg shadow-[#7b4fff]/20
-                  transition
-                  bg-gradient-to-r from-[#7b4fff] to-[#3b82f6]
-                  disabled:bg-[#e0dbff] disabled:text-[#a6a0cc] disabled:shadow-none
-                  hover:opacity-90
-                "
+    w-full py-4 rounded-xl
+    flex items-center justify-center gap-2
+    font-medium text-white
+    shadow-lg shadow-[#7b4fff]/20
+    transition
+    bg-gradient-to-r from-[#7b4fff] to-[#3b82f6]
+    disabled:bg-[#e0dbff] disabled:text-[#a6a0cc] disabled:shadow-none
+    hover:opacity-90
+  "
               >
                 <Icon icon="fluent:send-28-filled" className="w-5 h-5" />
                 Finalizar Pedido
               </button>
+
             </div>
           </div>
         </aside>
