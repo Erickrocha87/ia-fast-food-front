@@ -31,20 +31,18 @@ interface SubscriptionData {
   cycleEnd?: string;
 }
 
+const API = "http://localhost:1337";
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("geral");
   const { isReady } = useAuthGuard();
+  const { users, findAll } = useUser();
 
   // CARDÁPIO
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const { users, findAll } = useUser();
-
-  useEffect(() => {
-    findAll();
-  }, []);
 
   // STATS
   const [stats, setStats] = useState({
@@ -62,6 +60,12 @@ export default function AdminDashboard() {
     null
   );
 
+  // ================== AUTH / USERS ==================
+  useEffect(() => {
+    findAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -71,19 +75,54 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // ================== CARDÁPIO ==================
+  const handleDeleteMenuItem = async (id: number) => {
+    const confirmDelete = window.confirm(
+      "Tem certeza que deseja remover este item do cardápio?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`${API}/menu/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Erro ao deletar item");
+      }
+
+      setMenuItems((prev) => prev.filter((item) => item.id !== id));
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao deletar item do cardápio.");
+    }
+  };
+
   const fetchMenuItems = async () => {
     try {
       setLoading(true);
       setErro(null);
 
-      const res = await fetch("http://localhost:1337/menu", {
+      const res = await fetch(`${API}/menu`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
         },
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Erro ao buscar cardápio");
+      }
+
       const data = await res.json();
       setMenuItems(data);
     } catch (err) {
+      console.error(err);
       setErro("Erro ao buscar cardápio");
     } finally {
       setLoading(false);
@@ -100,12 +139,13 @@ export default function AdminDashboard() {
     fetchMenuItems();
   }, []);
 
+  // ================== STATS ==================
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch("http://localhost:1337/dashboard/stats", {
+        const res = await fetch(`${API}/dashboard/stats`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
           },
         });
 
@@ -136,7 +176,7 @@ export default function AdminDashboard() {
         return;
       }
 
-      const res = await fetch("http://localhost:1337/me/subscription", {
+      const res = await fetch(`${API}/me/subscription`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -177,13 +217,12 @@ export default function AdminDashboard() {
   }, []);
 
   // ================= PEDIDOS NO DASHBOARD =================
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [ordersPending, setOrdersPending] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ordersCompleted, setOrdersCompleted] = useState<any[]>([]);
-  const [ordersTab, setOrdersTab] = useState<"pendentes" | "concluidos">(
-    "pendentes"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [ordersPaid, setOrdersPaid] = useState<any[]>([]);
+  const [ordersTab, setOrdersTab] = useState<"concluidos" | "pagos">(
+    "concluidos"
   );
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -193,32 +232,32 @@ export default function AdminDashboard() {
       setOrdersLoading(true);
       setOrdersError(null);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") ?? "";
 
-      const [resPend, resComp] = await Promise.all([
-        fetch("http://localhost:1337/orders/kitchen", {
+      const [resCompleted, resPaid] = await Promise.all([
+        fetch(`${API}/orders/cashier/completed`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }),
-        fetch("http://localhost:1337/orders/kitchen/completed", {
+        fetch(`${API}/orders/cashier/paid`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }),
       ]);
 
-      if (!resPend.ok || !resComp.ok) {
-        throw new Error("Erro ao buscar pedidos");
+      if (!resCompleted.ok || !resPaid.ok) {
+        throw new Error("Erro HTTP ao buscar pedidos");
       }
 
-      const [dataPend, dataComp] = await Promise.all([
-        resPend.json(),
-        resComp.json(),
+      const [dataCompleted, dataPaid] = await Promise.all([
+        resCompleted.json(),
+        resPaid.json(),
       ]);
 
-      setOrdersPending(dataPend);
-      setOrdersCompleted(dataComp);
+      setOrdersCompleted(dataCompleted);
+      setOrdersPaid(dataPaid);
     } catch (err) {
       console.error(err);
       setOrdersError("Erro ao buscar pedidos");
@@ -227,18 +266,29 @@ export default function AdminDashboard() {
     }
   };
 
-  const completeOrder = async (id: number) => {
+  // CONCLUÍDO -> PAGO
+  const markOrderPaid = async (id: number) => {
     try {
       setOrdersLoading(true);
-      await fetch(`http://localhost:1337/orders/kitchen/${id}/complete`, {
+      const token = localStorage.getItem("token") ?? "";
+
+      const res = await fetch(`${API}/orders/cashier/${id}/paid`, {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || data.message || "Erro ao marcar como pago");
+      }
+
       await fetchOrders();
     } catch (err) {
-      console.error("Erro ao concluir pedido", err);
+      console.error("Erro ao marcar pedido como pago", err);
+      alert("Erro ao marcar pedido como pago.");
     } finally {
       setOrdersLoading(false);
     }
@@ -374,7 +424,7 @@ export default function AdminDashboard() {
 
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-sm font-medium">
+            <div className="w-9 h-9 rounded-full bg_WHITE/20 flex items-center justify-center text-sm font-medium bg-white/20">
               {userName?.charAt(0) || "U"}
             </div>
             <div className="text-xs">
@@ -449,12 +499,12 @@ export default function AdminDashboard() {
                 <OrdersTable
                   tab={ordersTab}
                   setTab={setOrdersTab}
-                  pending={ordersPending}
                   completed={ordersCompleted}
+                  paid={ordersPaid}
                   loading={ordersLoading}
                   error={ordersError}
                   onRefresh={fetchOrders}
-                  onComplete={completeOrder}
+                  onMarkPaid={markOrderPaid}
                 />
               </section>
             </>
@@ -510,18 +560,15 @@ export default function AdminDashboard() {
                       formData.append("file", file);
 
                       try {
-                        const res = await fetch(
-                          "http://localhost:1337/csv/import",
-                          {
-                            method: "POST",
-                            body: formData,
-                            headers: {
-                              Authorization: `Bearer ${localStorage.getItem(
-                                "token"
-                              )}`,
-                            },
-                          }
-                        );
+                        const res = await fetch(`${API}/csv/import`, {
+                          method: "POST",
+                          body: formData,
+                          headers: {
+                            Authorization: `Bearer ${
+                              localStorage.getItem("token") ?? ""
+                            }`,
+                          },
+                        });
 
                         const data = await res.json();
                         if (!res.ok)
@@ -534,6 +581,7 @@ export default function AdminDashboard() {
                         );
                         fetchMenuItems();
                       } catch (err) {
+                        console.error(err);
                         alert("Falha na importação");
                       }
                     }}
@@ -575,6 +623,13 @@ export default function AdminDashboard() {
                           <p className="text-sm font-semibold text-[#6d4aff] mt-2">
                             R$ {item.price?.toFixed(2)}
                           </p>
+
+                          <button
+                            onClick={() => handleDeleteMenuItem(item.id)}
+                            className="mt-3 text-xs bg-red-50 text-red-500 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100 transition"
+                          >
+                            Remover
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -667,29 +722,30 @@ function UserCard({ name, role }: { name: string; role: string }) {
 function OrdersTable({
   tab,
   setTab,
-  pending,
   completed,
+  paid,
   loading,
   error,
   onRefresh,
-  onComplete,
+  onMarkPaid,
 }: {
-  tab: "pendentes" | "concluidos";
-  setTab: (tab: "pendentes" | "concluidos") => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  pending: any[];
+  tab: "concluidos" | "pagos";
+  setTab: (tab: "concluidos" | "pagos") => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completed: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  paid: any[];
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
-  onComplete: (id: number) => void;
+  onMarkPaid: (id: number) => void;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const perPage = 8;
 
-  const currentOrders = tab === "pendentes" ? pending : completed;
+  const isConcluidos = tab === "concluidos";
+  const currentOrders = isConcluidos ? completed : paid;
 
   const filtered = currentOrders.filter((order) => {
     const idMatch = String(order.id).includes(search);
@@ -705,51 +761,69 @@ function OrdersTable({
     setPage(1);
   };
 
-  const isPendentes = tab === "pendentes";
-
-  // helper pra somar total do pedido (se tiver price nos menuItems)
   const calcTotal = (order: any) => {
-    if (!order.orderItems) return 0;
-    return order.orderItems.reduce((sum: number, item: any) => {
-      const price = item.menuItem?.price ?? 0;
-      const qty = item.quantity ?? 1;
-      return sum + price * qty;
-    }, 0);
+    const fromItems =
+      order.orderItems?.reduce((sum: number, item: any) => {
+        const price = item.menuItem?.price ?? item.price ?? 0;
+        const qty = item.quantity ?? 1;
+        return sum + Number(price) * Number(qty);
+      }, 0) ?? 0;
+
+    return Number(order.total ?? fromItems);
   };
 
   return (
     <div className="bg-white border border-[#e3e0ff] rounded-2xl shadow-sm p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-[#6d4aff]">
+            Pedidos {isConcluidos ? "concluídos" : "pagos"}
+          </h2>
+          <p className="text-xs text-gray-500">
+            Acompanhe pedidos finalizados e controle o que já foi pago.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Toggle Concluídos / Pagos */}
+          <div className="flex bg-[#f4f4ff] border border-[#e2e4ff] rounded-full p-1 text-xs">
+            <button
+              onClick={() => {
+                setTab("concluidos");
+                setPage(1);
+              }}
+              className={`px-3 py-1 rounded-full transition ${
+                isConcluidos
+                  ? "bg-white shadow-sm text-[#16a34a]"
+                  : "text-gray-500 hover:text-[#16a34a]"
+              }`}
+            >
+              Concluídos
+            </button>
+            <button
+              onClick={() => {
+                setTab("pagos");
+                setPage(1);
+              }}
+              className={`px-3 py-1 rounded-full transition ${
+                !isConcluidos
+                  ? "bg-white shadow-sm text-[#2563eb]"
+                  : "text-gray-500 hover:text-[#2563eb]"
+              }`}
+            >
+              Pagos
+            </button>
+          </div>
+
           <button
-            onClick={() => {
-              setTab("pendentes");
-              setPage(1);
-            }}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-              isPendentes
-                ? "bg-[#4f46e5] text-white"
-                : "bg-gray-100 text-gray-600"
-            }`}
+            onClick={onRefresh}
+            className="text-xs px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] hover:bg-white transition hidden md:inline-flex"
           >
-            Pendentes ({pending.length})
-          </button>
-          <button
-            onClick={() => {
-              setTab("concluidos");
-              setPage(1);
-            }}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-              !isPendentes
-                ? "bg-[#4f46e5] text-white"
-                : "bg-gray-100 text-gray-600"
-            }`}
-          >
-            Concluídos ({completed.length})
+            Atualizar
           </button>
         </div>
 
-        <div className="flex flex-1 sm:flex-none items-center gap-2">
+        <div className="flex flex-1 md:flex-none items-center gap-2">
           <div className="flex-1 relative max-w-xs">
             <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
             <input
@@ -761,7 +835,7 @@ function OrdersTable({
           </div>
           <button
             onClick={onRefresh}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50 md:hidden"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Atualizar
@@ -769,116 +843,143 @@ function OrdersTable({
         </div>
       </div>
 
-      {loading ? (
-        <p className="text-sm text-gray-500">Carregando pedidos...</p>
-      ) : error ? (
-        <p className="text-sm text-red-500">{error}</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">
-          Nenhum pedido {isPendentes ? "pendente" : "concluído"} encontrado.
-        </p>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-[11px] text-gray-500 border-b border-gray-100">
-                  <th className="text-left py-2">ID</th>
-                  <th className="text-left py-2">Mesa</th>
-                  <th className="text-left py-2">Itens</th>
-                  <th className="text-left py-2">Total</th>
-                  <th className="text-left py-2">Criado em</th>
-                  {isPendentes && <th className="text-right py-2">Ações</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {paginated.map((order) => {
-                  const total = calcTotal(order);
-                  const created =
-                    order.createdAt &&
-                    new Date(order.createdAt).toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
-
-                  const itensResumo = (order.orderItems || [])
-                    .map(
+      <div className="overflow-x-auto border border-[#f0f0ff] rounded-2xl">
+        <table className="w-full text-sm">
+          <thead className="bg-[#fafaff] text-xs text-gray-500">
+            <tr className="border-b border-[#ececff]">
+              <th className="text-left py-3 px-4">Pedido</th>
+              <th className="text-left py-3 px-4">Mesa</th>
+              <th className="text-left py-3 px-4">Itens</th>
+              <th className="text-right py-3 px-4">Total</th>
+              <th className="text-center py-3 px-4">Status</th>
+              <th className="text-right py-3 px-4">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="py-8 text-center text-gray-400 text-sm"
+                >
+                  Carregando pedidos...
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="py-8 text-center text-red-500 text-sm"
+                >
+                  {error}
+                </td>
+              </tr>
+            ) : paginated.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="py-8 text-center text-gray-400 text-sm"
+                >
+                  Nenhum pedido encontrado.
+                </td>
+              </tr>
+            ) : (
+              paginated.map((order) => {
+                const total = calcTotal(order);
+                const itensLabel =
+                  order.orderItems
+                    ?.map(
                       (item: any) =>
-                        `${item.quantity || 1}x ${
-                          item.menuItem?.name || "Item"
+                        `${item.quantity}x ${
+                          item.menuItem?.name ?? "Item sem nome"
                         }`
                     )
-                    .join(", ");
+                    .join(", ") ?? "";
 
-                  return (
-                    <tr
-                      key={order.id}
-                      className="border-b border-gray-50 last:border-none"
-                    >
-                      <td className="py-2 text-gray-700 font-medium">
-                        #{order.id}
-                      </td>
-                      <td className="py-2 text-gray-700">
-                        {order.tableNumber || "-"}
-                      </td>
-                      <td className="py-2 text-gray-600 max-w-[260px] truncate">
-                        {itensResumo || "Sem itens"}
-                      </td>
-                      <td className="py-2 text-gray-800 font-semibold">
-                        R$ {total.toFixed(2)}
-                      </td>
-                      <td className="py-2 text-gray-500">{created || "-"}</td>
-                      {isPendentes && (
-                        <td className="py-2 text-right">
-                          <button
-                            onClick={() => onComplete(order.id)}
-                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                          >
-                            Marcar como pronto
-                          </button>
-                        </td>
+                return (
+                  <tr
+                    key={order.id}
+                    className="border-t border-[#f3f3ff] hover:bg-[#fafaff] transition"
+                  >
+                    <td className="py-3 px-4 font-semibold text-gray-800 whitespace-nowrap">
+                      #{order.id}
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-[#eef2ff] text-[#4c51bf] text-xs font-medium">
+                        Mesa {order.tableNumber ?? "-"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 max-w-[320px]">
+                      <p className="text-xs text-gray-700 truncate">
+                        {itensLabel}
+                      </p>
+                    </td>
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <span className="font-semibold text-[#6b46ff]">
+                        R$ {Number(total).toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {isConcluidos ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#dcfce7] text-[#166534] text-[11px] font-semibold">
+                          Concluído
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#dbeafe] text-[#1d4ed8] text-[11px] font-semibold">
+                          Pago
+                        </span>
                       )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {isConcluidos ? (
+                        <button
+                          onClick={() => onMarkPaid(order.id)}
+                          className="inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#22c55e] to-[#16a34a] shadow hover:brightness-110 transition"
+                        >
+                          Marcar como pago
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
-          {/* paginação */}
-          <div className="flex items-center justify-between mt-4 text-[11px] text-gray-500">
-            <span>
-              Página {page} de {totalPages}
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className={`px-2 py-1 rounded-md border ${
-                  page === 1
-                    ? "border-gray-100 text-gray-300 cursor-not-allowed"
-                    : "border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                Anterior
-              </button>
-              <button
-                disabled={page === totalPages}
-                onClick={() =>
-                  setPage((p) => Math.min(totalPages, p + 1))
-                }
-                className={`px-2 py-1 rounded-md border ${
-                  page === totalPages
-                    ? "border-gray-100 text-gray-300 cursor-not-allowed"
-                    : "border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                Próxima
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      {/* paginação */}
+      <div className="flex items-center justify-between mt-4 text-[11px] text-gray-500">
+        <span>
+          Página {page} de {totalPages}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            disabled={page === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className={`px-2 py-1 rounded-md border ${
+              page === 1
+                ? "border-gray-100 text-gray-300 cursor-not-allowed"
+                : "border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Anterior
+          </button>
+          <button
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className={`px-2 py-1 rounded-md border ${
+              page === totalPages
+                ? "border-gray-100 text-gray-300 cursor-not-allowed"
+                : "border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Próxima
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

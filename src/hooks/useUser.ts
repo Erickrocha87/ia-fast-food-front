@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+
+const API = process.env.NEXT_PUBLIC_API_URL;
 
 export function useUser() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,9 +12,7 @@ export function useUser() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const API = process.env.NEXT_PUBLIC_API_URL;
-
-  const findAll = async () => {
+  const findAll = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -37,9 +37,9 @@ export function useUser() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const findById = async (id: number) => {
+  const findById = useCallback(async (id: number) => {
     try {
       setLoading(true);
       setError(null);
@@ -64,7 +64,7 @@ export function useUser() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   return {
     users,
