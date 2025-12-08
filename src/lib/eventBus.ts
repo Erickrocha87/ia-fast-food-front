@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Listener = (data: any) => void;
 
 class EventBus {
@@ -16,6 +17,7 @@ class EventBus {
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   emit(event: string, data: any) {
     if (!this.listeners[event]) return;
     this.listeners[event].forEach((cb) => cb(data));

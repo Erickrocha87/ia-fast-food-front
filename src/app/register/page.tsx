@@ -14,7 +14,6 @@ export default function RegisterPage() {
   const fromPlan = searchParams.get("fromPlan");
   const plano = searchParams.get("plano");
 
-  // 👇 Evita toast duplicado apenas neste mount (Strict Mode)
   const toastShownRef = useRef(false);
 
   useEffect(() => {
@@ -49,10 +48,8 @@ export default function RegisterPage() {
 
   return (
     <div className="w-full h-screen flex overflow-hidden bg-[#f5f6ff]">
-      {/* TOASTER */}
       <Toaster position="top-right" />
 
-      {/* LADO ESQUERDO */}
       <div className="hidden md:flex w-1/2 h-full bg-gradient-to-br from-[#7b4fff] via-[#a855f7] to-[#3b82f6] items-center justify-center text-white relative">
         <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_20%,#ffffff33,transparent_70%),radial-gradient(circle_at_80%_80%,#ffffff22,transparent_60%)]" />
 
@@ -71,7 +68,6 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* FORMULÁRIO */}
       <div className="w-full md:w-1/2 h-full bg-white flex flex-col">
         <div className="px-10 pt-10 flex items-center gap-4">
           <Image

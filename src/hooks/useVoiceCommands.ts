@@ -32,7 +32,7 @@ export function useVoiceCommands(transcript: string, actions: any) {
     };
 
     if (lower.includes("adicionar") || lower.includes("quero") || lower.includes("coloca")) {
-      // supomos que o nome do item vem depois dessas palavras
+
       const match = lower.replace(/adicionar|quero|coloca/gi, "").trim();
       if (match) {
         actions.adicionar(match);

@@ -10,6 +10,8 @@ import {
 import { Icon } from "@iconify/react";
 import { jwtDecode } from "jwt-decode";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import toast, { Toaster } from "react-hot-toast";
+
 import { useRouter } from "next/navigation";
 
 export default function AdminDashboard() {
@@ -19,13 +21,11 @@ export default function AdminDashboard() {
   const { isReady } = useAuthGuard();
   const router = useRouter();
 
-  // CARDÁPIO
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  // STATS
   const [stats, setStats] = useState({
     liveOrders: 0,
     avgPrep: 0,
@@ -40,10 +40,21 @@ export default function AdminDashboard() {
     role: string;
   }
 
+interface SubscriptionData {
+  active: boolean;
+  plan?: string;
+  tokensLimit?: number;
+  tokensUsed?: number;
+  tokensRemaining?: number;
+  cycleStart?: string;
+  cycleEnd?: string;
+}
+
+const API = "http://localhost:1337";
+
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
 
-  // MESAS (do banco)
   type Table = { id: number; name: string; active?: boolean };
 
   const [tables, setTables] = useState<Table[]>([]);
@@ -51,10 +62,10 @@ export default function AdminDashboard() {
   const [tablesError, setTablesError] = useState<string | null>(null);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1337";
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(
+    null
+  );
 
-  // ---------------------------------------------------------
-  // Auth / usuário logado
-  // ---------------------------------------------------------
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -64,9 +75,6 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // ---------------------------------------------------------
-  // MESAS - chamadas API
-  // ---------------------------------------------------------
   const fetchTables = async () => {
     try {
       setTablesLoading(true);
@@ -163,20 +171,11 @@ export default function AdminDashboard() {
     router.push("/escolher");
   };
 
-  // carrega mesas ao abrir aba / página
   useEffect(() => {
     fetchTables();
   }, []);
 
-  // ---------------------------------------------------------
-  // Cardápio
-  // ---------------------------------------------------------
   const handleDeleteMenuItem = async (id: number) => {
-    const confirmDelete = window.confirm(
-      "Tem certeza que deseja remover este item do cardápio?"
-    );
-    if (!confirmDelete) return;
-
     try {
       const res = await fetch(`${API_BASE}/menu/${id}`, {
         method: "DELETE",
@@ -192,9 +191,10 @@ export default function AdminDashboard() {
       }
 
       setMenuItems((prev) => prev.filter((item) => item.id !== id));
+      toast.success("Item removido do cardápio.");
     } catch (error) {
       console.error(error);
-      alert("Erro ao deletar item do cardápio.");
+      toast.error("Erro ao deletar item do cardápio.");
     }
   };
 
@@ -227,9 +227,6 @@ export default function AdminDashboard() {
     fetchMenuItems();
   }, []);
 
-  // ---------------------------------------------------------
-  // Stats
-  // ---------------------------------------------------------
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -255,7 +252,51 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
-  // ================= PEDIDOS NO DASHBOARD =================
+  async function fetchSubscription() {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setSubscription({ active: false });
+        return;
+      }
+
+      const res = await fetch(`${API}/me/subscription`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      console.log("📦 /me/subscription:", data);
+
+      if (!data || data.active === false) {
+        setSubscription({ active: false });
+      } else {
+        setSubscription({
+          active: true,
+          plan: data.plan,
+          tokensLimit: data.tokensLimit,
+          tokensUsed: data.tokensUsed,
+          tokensRemaining: data.tokensRemaining,
+          cycleStart: data.cycleStart,
+          cycleEnd: data.cycleEnd,
+        });
+      }
+    } catch (err) {
+      console.error("Erro ao carregar assinatura:", err);
+      setSubscription({ active: false });
+    }
+  }
+
+  useEffect(() => {
+    fetchSubscription();
+
+    const interval = setInterval(() => {
+      fetchSubscription();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ordersCompleted, setOrdersCompleted] = useState<any[]>([]);
@@ -316,6 +357,7 @@ export default function AdminDashboard() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ status: "READY" }),
       });
 
       const data = await res.json();
@@ -327,9 +369,10 @@ export default function AdminDashboard() {
       }
 
       await fetchOrders();
+      toast.success("Pedido marcado como pago.");
     } catch (err) {
       console.error("Erro ao marcar pedido como pago", err);
-      alert("Erro ao marcar pedido como pago.");
+      toast.error("Erro ao marcar pedido como pago.");
     } finally {
       setOrdersLoading(false);
     }
@@ -341,15 +384,45 @@ export default function AdminDashboard() {
     fetchOrders();
   }, []);
 
-  // =========================================================
-
   if (!isReady) {
     return null;
   }
 
+   const planoAtivo = subscription?.active === true;
+  const nomePlano = planoAtivo
+    ? subscription?.plan ?? "Plano ativo"
+    : "Sem plano";
+  const tokensTexto = planoAtivo
+    ? `${subscription?.tokensUsed ?? 0}/${
+        subscription?.tokensLimit ?? 0
+      } tokens`
+    : "0/0 tokens";
+
+  let tokensUsedPercent = 0;
+  let tokensRemainingPercent = 0;
+  let renewalPercent = 0;
+
+  if (planoAtivo && subscription?.tokensLimit && subscription.tokensLimit > 0) {
+    tokensUsedPercent =
+      ((subscription.tokensUsed ?? 0) / subscription.tokensLimit) * 100;
+
+    tokensRemainingPercent =
+      ((subscription.tokensRemaining ?? 0) / subscription.tokensLimit) * 100;
+  }
+
+  if (planoAtivo && subscription?.cycleStart && subscription?.cycleEnd) {
+    const start = new Date(subscription.cycleStart).getTime();
+    const end = new Date(subscription.cycleEnd).getTime();
+    const now = Date.now();
+
+    if (end > start) {
+      renewalPercent = ((now - start) / (end - start)) * 100;
+    }
+  }
+
   return (
     <div className="w-full h-screen flex bg-[#0f172a]/5 text-gray-800 overflow-hidden">
-      {/* SIDEBAR */}
+       <Toaster position="top-right" />
       <aside className="hidden md:flex w-64 h-full flex-col bg-gradient-to-b from-[#7b4fff] via-[#a855f7] to-[#3b82f6] text-white p-6 gap-8">
         <div className="flex items-center gap-3">
           <div>
@@ -397,14 +470,31 @@ export default function AdminDashboard() {
           <h3 className="text-base font-semibold mb-3">Teste grátis</h3>
 
           <div className="space-y-2 mb-4 text-[11px]">
-            <ProgressLine label="Pedidos com IA" value="0/50" />
-            <ProgressLine label="Mesas simultâneas" value="0/5" />
-            <ProgressLine label="Usuários" value="0/3" />
-          </div>
+            <ProgressLine
+              label="Uso de tokens"
+              value={tokensTexto}
+              percent={tokensUsedPercent}
+            />
 
-          <button className="w-full text-xs font-semibold bg-white text-[#7b4fff] rounded-full py-2 shadow hover:bg-[#f6f3ff] transition">
-            ASSINAR AGORA
-          </button>
+            <ProgressLine
+              label="Tokens restantes"
+              value={`${subscription?.tokensRemaining ?? 0}`}
+              percent={tokensRemainingPercent}
+            />
+
+            <div>
+              <div className="flex justify-between text-[10px] mt-1">
+                <span>Renovação</span>
+                <span>
+                  {planoAtivo && subscription?.cycleEnd
+                    ? new Date(subscription.cycleEnd).toLocaleDateString(
+                        "pt-BR"
+                      )
+                    : "-"}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-2">
@@ -422,7 +512,6 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1 h-full bg-[#f9f9ff] flex flex-col overflow-hidden">
         <header className="w-full px-6 lg:px-10 pt-6 pb-4 bg-white shadow-sm flex items-center justify-between">
           <div>
@@ -447,10 +536,8 @@ export default function AdminDashboard() {
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 lg:px-10 py-6 space-y-8">
-          {/* DASHBOARD GERAL */}
           {activeTab === "geral" && (
             <>
-              {/* MÉTRICAS */}
               <section className="mt-4">
                 <h2 className="text-base font-semibold mb-4">
                   Desempenho do restaurante
@@ -477,7 +564,6 @@ export default function AdminDashboard() {
                 </div>
               </section>
 
-              {/* TABELA DE PEDIDOS */}
               <section className="mt-8">
                 <OrdersTable
                   tab={ordersTab}
@@ -494,7 +580,6 @@ export default function AdminDashboard() {
           )}
 
           <section className="mt-2">
-            {/* MESAS */}
             {activeTab === "mesas" && (
               <div className="grid gap-6">
                 <div className="flex items-center justify-between">
@@ -544,7 +629,6 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* CARDÁPIO */}
             {activeTab === "cardapio" && (
               <div>
                 <h2 className="text-lg font-semibold text-[#6d4aff] mb-6">
@@ -591,12 +675,14 @@ export default function AdminDashboard() {
                           throw new Error(data.error || "Erro ao enviar CSV");
 
                         alert(
-                          `✅ Cardápio importado com sucesso!\nItens importados: ${data.imported || 0
+                          `✅ Cardápio importado com sucesso!\nItens importados: ${
+                            data.imported || 0
                           }`
                         );
                         fetchMenuItems();
                       } catch (err) {
-                        alert("Falha na importação");
+                        console.error(err);
+                        toast.error("Falha na importação do CSV.");
                       }
                     }}
                   />
@@ -658,9 +744,17 @@ export default function AdminDashboard() {
   );
 }
 
-/* ================= COMPONENTES REUTILIZÁVEIS ================= */
+function ProgressLine({
+  label,
+  value,
+  percent = 0,
+}: {
+  label: string;
+  value: string | number;
+  percent?: number;
+}) {
+  const safePercent = Math.max(0, Math.min(100, percent));
 
-function ProgressLine({ label, value }) {
   return (
     <div>
       <div className="flex justify-between text-[10px] mb-1">
@@ -727,8 +821,6 @@ function TableCard({
   );
 }
 
-/* =============== TABELA DE PEDIDOS COM PAGINAÇÃO ================= */
-
 function OrdersTable({
   tab,
   setTab,
@@ -741,9 +833,7 @@ function OrdersTable({
 }: {
   tab: "concluidos" | "pagos";
   setTab: (tab: "concluidos" | "pagos") => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completed: any[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   paid: any[];
   loading: boolean;
   error: string | null;
@@ -784,7 +874,6 @@ function OrdersTable({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Toggle Concluídos / Pagos */}
           <div className="flex bg-[#f4f4ff] border border-[#e2e4ff] rounded-full p-1 text-xs">
             <button
               onClick={() => {
@@ -961,27 +1050,36 @@ function OrdersTable({
         </table>
       </div>
 
-      {/* paginação */}
-      <div className="flex items-center justify-between mt-4 text-xs text-gray-600">
-        <button
-          className="px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] disabled:opacity-40 disabled:cursor-not-allowed hover:bg:white transition"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          ← Anterior
-        </button>
+      <div className="flex items-center justify-between mt-4 text-[11px] text-gray-500">
         <span>
-          Página <span className="font-semibold">{page}</span> de{" "}
-          <span className="font-semibold">{totalPages}</span>
+          Página {page} de {totalPages}
         </span>
-        <button
-          className="px-3 py-2 rounded-xl bg-[#f4f4ff] border border-[#e2e4ff] disabled:opacity-40 disabled:cursor-not-allowed hover:bg:white transition"
-          disabled={page >= totalPages}
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-        >
-          Próxima →
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            disabled={page === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className={`px-2 py-1 rounded-md border ${
+              page === 1
+                ? "border-gray-100 text-gray-300 cursor-not-allowed"
+                : "border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Anterior
+          </button>
+          <button
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className={`px-2 py-1 rounded-md border ${
+              page === totalPages
+                ? "border-gray-100 text-gray-300 cursor-not-allowed"
+                : "border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Próxima
+          </button>
+        </div>
       </div>
     </div>
   );
 }
+

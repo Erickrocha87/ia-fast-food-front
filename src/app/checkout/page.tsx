@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Icon } from "@iconify/react";
+import toast, { Toaster } from "react-hot-toast";
 
 type TipoCobranca = "mensal" | "anual";
 
@@ -41,7 +42,6 @@ export default function CheckoutPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
 
   const planoId = searchParams.get("plano") || "basico";
   const tipoParam = (searchParams.get("tipo") as TipoCobranca) || "mensal";
@@ -56,7 +56,6 @@ export default function CheckoutPage() {
   const handlePagar = async () => {
     try {
       setLoading(true);
-      setErro(null);
 
       const res = await fetch("http://localhost:1337/stripe/checkout", {
         method: "POST",
@@ -80,7 +79,7 @@ export default function CheckoutPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       console.error(e);
-      setErro(e.message || "Não foi possível continuar o checkout.");
+      toast.error(e.message || "Não foi possível continuar o checkout.");
     } finally {
       setLoading(false);
     }
@@ -96,6 +95,8 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f5f6ff] via-[#f0f1ff] to-[#e7ebff] text-gray-900 flex flex-col relative overflow-hidden">
+      <Toaster position="top-right" />
+
       <div className="pointer-events-none absolute -top-32 -left-10 h-72 w-72 rounded-full bg-[#7b4fff]/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-20 h-96 w-96 rounded-full bg-[#3b82f6]/25 blur-3xl" />
 
@@ -129,7 +130,6 @@ export default function CheckoutPage() {
 
       <main className="flex-1 w-full relative z-10">
         <div className="w-full px-6 lg:px-12 xl:px-20 pb-12">
-
           <section className="mb-8">
             <div className="inline-flex items-center gap-2 bg-white/80 border border-[#e3e8ff] rounded-full px-3 py-1 text-[11px] text-[#6d4aff] font-medium shadow-sm mb-3">
               <span className="text-lg">🧾</span>
@@ -224,11 +224,17 @@ export default function CheckoutPage() {
                 <p className="text-[11px] text-gray-500 leading-relaxed">
                   A cobrança é recorrente (
                   {tipo === "mensal" ? "todo mês" : "anualmente"}). Você pode
-                  mudar de plano a qualquer momento pelo painel, sem
-                  multa nem burocracia.
+                  mudar de plano a qualquer momento pelo painel, sem multa nem
+                  burocracia.
                 </p>
                 <p className="text-[11px] text-gray-500 leading-relaxed">
-                  Para cancelamento basta entrar em contato com o suporte: <a className="text-[#4b38ff]" href="mailto:suporte@serveai.com">suporte@serveai.com</a>
+                  Para cancelamento basta entrar em contato com o suporte:{" "}
+                  <a
+                    className="text-[#4b38ff]"
+                    href="mailto:suporte@serveai.com"
+                  >
+                    suporte@serveai.com
+                  </a>
                 </p>
               </div>
 
@@ -245,7 +251,6 @@ export default function CheckoutPage() {
                     Você será redirecionado para o ambiente seguro Stripe.
                   </p>
                 </div>
-
               </div>
 
               <div className="bg-[#f8f7ff] border border-[#e2e4ff] rounded-2xl p-4 text-xs text-gray-600 flex items-start gap-3">
@@ -281,12 +286,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {erro && (
-                <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                  {erro}
-                </p>
-              )}
-
               <button
                 onClick={handlePagar}
                 disabled={loading}
@@ -309,7 +308,10 @@ export default function CheckoutPage() {
                   </>
                 ) : (
                   <>
-                    <Icon icon="fluent:card-ui-20-filled" className="w-5 h-5" />
+                    <Icon
+                      icon="fluent:card-ui-20-filled"
+                      className="w-5 h-5"
+                    />
                     Pagar com cartão
                   </>
                 )}
