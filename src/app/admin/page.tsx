@@ -12,20 +12,25 @@ import { jwtDecode } from "jwt-decode";
 import { useUser } from "@/hooks/useUser";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
+const API = "http://localhost:1337";
+
+interface MyToken {
+  id: number;
+  userName: string;
+  email: string;
+  role: string;
+}
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("geral");
   const { isReady } = useAuthGuard();
+  const { users, findAll } = useUser();
 
   // CARDÁPIO
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const { users, findAll } = useUser();
-
-  useEffect(() => {
-    findAll();
-  }, []);
 
   // STATS
   const [stats, setStats] = useState({
@@ -35,15 +40,13 @@ export default function AdminDashboard() {
     newCustomers: 0,
   });
 
-  interface MyToken {
-    id: number;
-    userName: string;
-    email: string;
-    role: string;
-  }
-
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
+
+  // ================== AUTH / USERS ==================
+  useEffect(() => {
+    findAll();
+  }, [findAll]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -54,33 +57,7 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const normalizeMenuResponse = (data: any): any[] => {
-    if (!data) return [];
-
-    // Caso clássico: já é um array de itens com name/price
-    if (Array.isArray(data) && data.length > 0) {
-      // Se já vier no formato certo
-      if ("name" in data[0] && "price" in data[0]) {
-        return data;
-      }
-
-      // Caso: array de categorias/menus com .items dentro
-      if ("items" in data[0]) {
-        return data.flatMap((m: any) => m.items || []);
-      }
-    }
-
-    // Caso: objeto com `items`, `menu` ou `data`
-    if (!Array.isArray(data) && typeof data === "object") {
-      if (Array.isArray(data.items)) return data.items;
-      if (Array.isArray(data.menu)) return data.menu;
-      if (Array.isArray(data.data)) return data.data;
-    }
-
-    return [];
-  };
-
+  // ================== CARDÁPIO ==================
   const handleDeleteMenuItem = async (id: number) => {
     const confirmDelete = window.confirm(
       "Tem certeza que deseja remover este item do cardápio?"
@@ -88,7 +65,7 @@ export default function AdminDashboard() {
     if (!confirmDelete) return;
 
     try {
-      const res = await fetch(`http://localhost:1337/menu/${id}`, {
+      const res = await fetch(`${API}/menu/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
@@ -101,7 +78,6 @@ export default function AdminDashboard() {
         throw new Error(data.message || "Erro ao deletar item");
       }
 
-      // Remove do estado sem precisar recarregar tudo
       setMenuItems((prev) => prev.filter((item) => item.id !== id));
     } catch (error) {
       console.error(error);
@@ -109,27 +85,31 @@ export default function AdminDashboard() {
     }
   };
 
-
   const fetchMenuItems = async () => {
     try {
       setLoading(true);
       setErro(null);
 
-      const res = await fetch("http://localhost:1337/menu", {
+      const res = await fetch(`${API}/menu`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
         },
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Erro ao buscar cardápio");
+      }
+
       const data = await res.json();
       setMenuItems(data);
-      // eslint-disable-next-line no-unused-vars
     } catch (err) {
+      console.error(err);
       setErro("Erro ao buscar cardápio");
     } finally {
       setLoading(false);
     }
   };
-
 
   useEffect(() => {
     if (activeTab === "cardapio") {
@@ -141,12 +121,13 @@ export default function AdminDashboard() {
     fetchMenuItems();
   }, []);
 
+  // ================== STATS ==================
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch("http://localhost:1337/dashboard/stats", {
+        const res = await fetch(`${API}/dashboard/stats`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
           },
         });
 
@@ -166,14 +147,14 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
-  // ================= PEDIDOS NO DASHBOARD =================
+  // ================= PEDIDOS (CONCLUÍDOS / PAGOS) =================
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [ordersPending, setOrdersPending] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ordersCompleted, setOrdersCompleted] = useState<any[]>([]);
-  const [ordersTab, setOrdersTab] = useState<"pendentes" | "concluidos">(
-    "pendentes"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [ordersPaid, setOrdersPaid] = useState<any[]>([]);
+  const [ordersTab, setOrdersTab] = useState<"concluidos" | "pagos">(
+    "concluidos"
   );
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -183,53 +164,68 @@ export default function AdminDashboard() {
       setOrdersLoading(true);
       setOrdersError(null);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") ?? "";
 
-      const [resPend, resComp] = await Promise.all([
-        fetch("http://localhost:1337/orders/kitchen", {
+      const [resCompleted, resPaid] = await Promise.all([
+        fetch(`${API}/orders/cashier/completed`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }),
-        fetch("http://localhost:1337/orders/kitchen/completed", {
+        fetch(`${API}/orders/cashier/paid`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }),
       ]);
 
-      const [dataPend, dataComp] = await Promise.all([
-        resPend.json(),
-        resComp.json(),
+      if (!resCompleted.ok || !resPaid.ok) {
+        throw new Error("Erro HTTP ao buscar pedidos");
+      }
+
+      const [dataCompleted, dataPaid] = await Promise.all([
+        resCompleted.json(),
+        resPaid.json(),
       ]);
 
-      setOrdersPending(dataPend);
-      setOrdersCompleted(dataComp);
+      setOrdersCompleted(dataCompleted);
+      setOrdersPaid(dataPaid);
     } catch (err) {
+      console.error(err);
       setOrdersError("Erro ao buscar pedidos");
     } finally {
       setOrdersLoading(false);
     }
   };
 
-  const completeOrder = async (id: number) => {
+  // PAID -> READY (pago)
+  const markOrderPaid = async (id: number) => {
     try {
       setOrdersLoading(true);
-      await fetch(`http://localhost:1337/orders/kitchen/${id}/complete`, {
+      const token = localStorage.getItem("token") ?? "";
+
+      const res = await fetch(`${API}/orders/cashier/${id}/paid`, {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || data.message || "Erro ao marcar como pago");
+      }
+
       await fetchOrders();
     } catch (err) {
-      console.error("Erro ao concluir pedido", err);
+      console.error("Erro ao marcar pedido como pago", err);
+      alert("Erro ao marcar pedido como pago.");
     } finally {
       setOrdersLoading(false);
     }
   };
 
-  // carrega pedidos ao abrir o dashboard
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -272,10 +268,11 @@ export default function AdminDashboard() {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${activeTab === item.id
-                ? "bg-white/15 shadow-sm"
-                : "bg-transparent hover:bg-white/10"
-                }`}
+              className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${
+                activeTab === item.id
+                  ? "bg-white/15 shadow-sm"
+                  : "bg-transparent hover:bg-white/10"
+              }`}
             >
               {item.icon}
               <span>{item.label}</span>
@@ -370,17 +367,17 @@ export default function AdminDashboard() {
                 </div>
               </section>
 
-              {/* TABELA DE PEDIDOS LOGO ABAIXO */}
+              {/* TABELA DE PEDIDOS */}
               <section className="mt-8">
                 <OrdersTable
                   tab={ordersTab}
                   setTab={setOrdersTab}
-                  pending={ordersPending}
                   completed={ordersCompleted}
+                  paid={ordersPaid}
                   loading={ordersLoading}
                   error={ordersError}
                   onRefresh={fetchOrders}
-                  onComplete={completeOrder}
+                  onMarkPaid={markOrderPaid}
                 />
               </section>
             </>
@@ -436,29 +433,28 @@ export default function AdminDashboard() {
                       formData.append("file", file);
 
                       try {
-                        const res = await fetch(
-                          "http://localhost:1337/csv/import",
-                          {
-                            method: "POST",
-                            body: formData,
-                            headers: {
-                              Authorization: `Bearer ${localStorage.getItem(
-                                "token"
-                              )}`,
-                            },
-                          }
-                        );
+                        const res = await fetch(`${API}/csv/import`, {
+                          method: "POST",
+                          body: formData,
+                          headers: {
+                            Authorization: `Bearer ${
+                              localStorage.getItem("token") ?? ""
+                            }`,
+                          },
+                        });
 
                         const data = await res.json();
                         if (!res.ok)
                           throw new Error(data.error || "Erro ao enviar CSV");
 
                         alert(
-                          `✅ Cardápio importado com sucesso!\nItens importados: ${data.imported || 0
+                          `✅ Cardápio importado com sucesso!\nItens importados: ${
+                            data.imported || 0
                           }`
                         );
                         fetchMenuItems();
                       } catch (err) {
+                        console.error(err);
                         alert("Falha na importação");
                       }
                     }}
@@ -523,7 +519,7 @@ export default function AdminDashboard() {
 
 /* ================= COMPONENTES REUTILIZÁVEIS ================= */
 
-function ProgressLine({ label, value }) {
+function ProgressLine({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="flex justify-between text-[10px] mb-1">
@@ -537,7 +533,17 @@ function ProgressLine({ label, value }) {
   );
 }
 
-function Card({ title, icon, value, subtitle }) {
+function Card({
+  title,
+  icon,
+  value,
+  subtitle,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  value: string | number;
+  subtitle: string;
+}) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#ececff] hover:shadow-md transition">
       <div className="flex items-center gap-3 mb-2 text-gray-700">
@@ -550,7 +556,7 @@ function Card({ title, icon, value, subtitle }) {
   );
 }
 
-function UserCard({ name, role }) {
+function UserCard({ name, role }: { name: string; role: string }) {
   return (
     <div className="bg-white border border-[#ececff] rounded-2xl px-5 py-4 flex justify-between items-center shadow-sm hover:shadow-md transition">
       <div className="flex items-center gap-3">
@@ -576,29 +582,30 @@ function UserCard({ name, role }) {
 function OrdersTable({
   tab,
   setTab,
-  pending,
   completed,
+  paid,
   loading,
   error,
   onRefresh,
-  onComplete,
+  onMarkPaid,
 }: {
-  tab: "pendentes" | "concluidos";
-  setTab: (tab: "pendentes" | "concluidos") => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  pending: any[];
+  tab: "concluidos" | "pagos";
+  setTab: (tab: "concluidos" | "pagos") => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completed: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  paid: any[];
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
-  onComplete: (id: number) => void;
+  onMarkPaid: (id: number) => void;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const perPage = 8;
 
-  const currentOrders = tab === "pendentes" ? pending : completed;
+  const isConcluidos = tab === "concluidos";
+  const currentOrders = isConcluidos ? completed : paid;
 
   const filtered = currentOrders.filter((order) => {
     const idMatch = String(order.id).includes(search);
@@ -614,49 +621,46 @@ function OrdersTable({
     setPage(1);
   };
 
-  const isPendentes = tab === "pendentes";
-
   return (
     <div className="bg-white border border-[#e3e0ff] rounded-2xl shadow-sm p-6">
       <div className="flex items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-lg font-semibold text-[#6d4aff]">
-            Pedidos {isPendentes ? "em andamento" : "concluídos"}
+            Pedidos {isConcluidos ? "concluídos" : "pagos"}
           </h2>
           <p className="text-xs text-gray-500">
-            Veja rapidamente os pedidos que estão na cozinha ou já foram
-            finalizados.
+            Acompanhe pedidos finalizados e controle o que já foi pago.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Toggle Pendentes / Concluídos */}
+          {/* Toggle Concluídos / Pagos */}
           <div className="flex bg-[#f4f4ff] border border-[#e2e4ff] rounded-full p-1 text-xs">
-            <button
-              onClick={() => {
-                setTab("pendentes");
-                setPage(1);
-              }}
-              className={`px-3 py-1 rounded-full transition ${
-                isPendentes
-                  ? "bg-white shadow-sm text-[#6d4aff]"
-                  : "text-gray-500 hover:text-[#6d4aff]"
-              }`}
-            >
-              Pendentes
-            </button>
             <button
               onClick={() => {
                 setTab("concluidos");
                 setPage(1);
               }}
               className={`px-3 py-1 rounded-full transition ${
-                !isPendentes
+                isConcluidos
                   ? "bg-white shadow-sm text-[#16a34a]"
                   : "text-gray-500 hover:text-[#16a34a]"
               }`}
             >
               Concluídos
+            </button>
+            <button
+              onClick={() => {
+                setTab("pagos");
+                setPage(1);
+              }}
+              className={`px-3 py-1 rounded-full transition ${
+                !isConcluidos
+                  ? "bg-white shadow-sm text-[#2563eb]"
+                  : "text-gray-500 hover:text-[#2563eb]"
+              }`}
+            >
+              Pagos
             </button>
           </div>
 
@@ -741,15 +745,19 @@ function OrdersTable({
               </tr>
             ) : (
               paginated.map((order) => {
-                const total = order.orderItems?.reduce(
-                  (sum, item) => sum + item.price * item.quantity,
-                  0
-                );
+                const total =
+                  order.total ??
+                  order.orderItems?.reduce(
+                    (sum: number, item: any) =>
+                      sum + Number(item.price) * Number(item.quantity),
+                    0
+                  ) ??
+                  0;
 
                 const itensLabel =
                   order.orderItems
                     ?.map(
-                      (item) =>
+                      (item: any) =>
                         `${item.quantity}x ${
                           item.menuItem?.name ?? "Item sem nome"
                         }`
@@ -776,32 +784,30 @@ function OrdersTable({
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <span className="font-semibold text-[#6b46ff]">
-                        R$ {total?.toFixed(2) ?? "0,00"}
+                        R$ {Number(total).toFixed(2)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      {isPendentes ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#fef3c7] text-[#92400e] text-[11px] font-semibold">
-                          Pendente
-                        </span>
-                      ) : (
+                      {isConcluidos ? (
                         <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#dcfce7] text-[#166534] text-[11px] font-semibold">
                           Concluído
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#dbeafe] text-[#1d4ed8] text-[11px] font-semibold">
+                          Pago
                         </span>
                       )}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {isPendentes ? (
+                      {isConcluidos ? (
                         <button
-                          onClick={() => onComplete(order.id)}
-                          className="inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] shadow hover:brightness-110 transition"
+                          onClick={() => onMarkPaid(order.id)}
+                          className="inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#22c55e] to-[#16a34a] shadow hover:brightness-110 transition"
                         >
-                          Marcar como pronto
+                          Marcar como pago
                         </button>
                       ) : (
-                        <span className="text-[11px] text-gray-400">
-                          —
-                        </span>
+                        <span className="text-[11px] text-gray-400">—</span>
                       )}
                     </td>
                   </tr>
