@@ -177,29 +177,7 @@ export default function PlanosPage() {
             <p className="text-sm md:text-base text-gray-600 mb-6 max-w-2xl">
               Comece com o básico para uma experiência completa de atendimento.
             </p>
-
-            <div className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-[#e3e8ff] p-1 text-xs">
-              <button
-                onClick={() => setTipo("mensal")}
-                className={`px-3 py-1 rounded-full transition ${
-                  tipo === "mensal"
-                    ? "bg-[#7b4fff] text-white shadow"
-                    : "text-gray-600"
-                }`}
-              >
-                Mensal
-              </button>
-              <button
-                onClick={() => setTipo("anual")}
-                className={`px-3 py-1 rounded-full transition ${
-                  tipo === "anual"
-                    ? "bg-[#7b4fff] text-white shadow"
-                    : "text-gray-600"
-                }`}
-              >
-                Anual
-              </button>
-            </div>
+            
           </section>
 
           <section className="grid grid-cols-1 md:grid-cols-3 gap-7 md:gap-6 items-stretch pt-10">

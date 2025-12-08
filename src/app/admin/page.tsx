@@ -11,7 +11,6 @@ import { Icon } from "@iconify/react";
 import { jwtDecode } from "jwt-decode";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import toast, { Toaster } from "react-hot-toast";
-
 import { useRouter } from "next/navigation";
 
 export default function AdminDashboard() {
@@ -40,17 +39,17 @@ export default function AdminDashboard() {
     role: string;
   }
 
-interface SubscriptionData {
-  active: boolean;
-  plan?: string;
-  tokensLimit?: number;
-  tokensUsed?: number;
-  tokensRemaining?: number;
-  cycleStart?: string;
-  cycleEnd?: string;
-}
+  interface SubscriptionData {
+    active: boolean;
+    plan?: string;
+    tokensLimit?: number;
+    tokensUsed?: number;
+    tokensRemaining?: number;
+    cycleStart?: string;
+    cycleEnd?: string;
+  }
 
-const API = "http://localhost:1337";
+  const API = "http://localhost:1337";
 
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
@@ -378,8 +377,6 @@ const API = "http://localhost:1337";
     }
   };
 
-
-
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -388,14 +385,13 @@ const API = "http://localhost:1337";
     return null;
   }
 
-   const planoAtivo = subscription?.active === true;
+  const planoAtivo = subscription?.active === true;
   const nomePlano = planoAtivo
     ? subscription?.plan ?? "Plano ativo"
-    : "Sem plano";
+    : "Sem plano (teste grátis)";
+
   const tokensTexto = planoAtivo
-    ? `${subscription?.tokensUsed ?? 0}/${
-        subscription?.tokensLimit ?? 0
-      } tokens`
+    ? `${subscription?.tokensUsed ?? 0}/${subscription?.tokensLimit ?? 0} tokens`
     : "0/0 tokens";
 
   let tokensUsedPercent = 0;
@@ -422,7 +418,8 @@ const API = "http://localhost:1337";
 
   return (
     <div className="w-full h-screen flex bg-[#0f172a]/5 text-gray-800 overflow-hidden">
-       <Toaster position="top-right" />
+      <Toaster position="top-right" />
+
       <aside className="hidden md:flex w-64 h-full flex-col bg-gradient-to-b from-[#7b4fff] via-[#a855f7] to-[#3b82f6] text-white p-6 gap-8">
         <div className="flex items-center gap-3">
           <div>
@@ -452,10 +449,11 @@ const API = "http://localhost:1337";
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${activeTab === item.id
-                ? "bg-white/15 shadow-sm"
-                : "bg-transparent hover:bg-white/10"
-                }`}
+              className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${
+                activeTab === item.id
+                  ? "bg-white/15 shadow-sm"
+                  : "bg-transparent hover:bg-white/10"
+              }`}
             >
               {item.icon}
               <span>{item.label}</span>
@@ -465,11 +463,13 @@ const API = "http://localhost:1337";
 
         <div className="bg-black/10 rounded-2xl p-4 shadow-lg backdrop-blur-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70 mb-1">
-            Sem plano
+            {planoAtivo ? "Plano ativo" : "Sem plano"}
           </p>
-          <h3 className="text-base font-semibold mb-3">Teste grátis</h3>
+          <h3 className="text-base font-semibold mb-3 truncate">
+            {nomePlano}
+          </h3>
 
-          <div className="space-y-2 mb-4 text-[11px]">
+          <div className="space-y-3 mb-3 text-[11px]">
             <ProgressLine
               label="Uso de tokens"
               value={tokensTexto}
@@ -482,9 +482,9 @@ const API = "http://localhost:1337";
               percent={tokensRemainingPercent}
             />
 
-            <div>
-              <div className="flex justify-between text-[10px] mt-1">
-                <span>Renovação</span>
+            <div className="mt-2">
+              <div className="flex justify-between text-[10px] mb-1">
+                <span>Renova em</span>
                 <span>
                   {planoAtivo && subscription?.cycleEnd
                     ? new Date(subscription.cycleEnd).toLocaleDateString(
@@ -492,6 +492,14 @@ const API = "http://localhost:1337";
                       )
                     : "-"}
                 </span>
+              </div>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/60 rounded-full"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, renewalPercent))}%`,
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -512,12 +520,19 @@ const API = "http://localhost:1337";
         </div>
       </aside>
 
+      {/* MAIN */}
       <div className="flex-1 h-full bg-[#f9f9ff] flex flex-col overflow-hidden">
         <header className="w-full px-6 lg:px-10 pt-6 pb-4 bg-white shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-400">
               Plano{" "}
-              <span className="text-[#7b4fff] font-medium">teste grátis</span>
+              <span className="text-[#7b4fff] font-medium">{nomePlano}</span>
+              {planoAtivo && subscription?.cycleEnd && (
+                <>
+                  {" "}
+                  •
+                </>
+              )}
             </p>
             <h1 className="text-2xl font-semibold text-gray-900">
               Olá, {userName}
@@ -674,11 +689,9 @@ const API = "http://localhost:1337";
                         if (!res.ok)
                           throw new Error(data.error || "Erro ao enviar CSV");
 
-                        alert(
-                          `✅ Cardápio importado com sucesso!\nItens importados: ${
-                            data.imported || 0
-                          }`
-                        );
+                        toast.success(`Cardápio importado com sucesso!\nItens importados: ${
+                          data.imported || 0
+                        }`);
                         fetchMenuItems();
                       } catch (err) {
                         console.error(err);
@@ -753,7 +766,7 @@ function ProgressLine({
   value: string | number;
   percent?: number;
 }) {
-  const safePercent = Math.max(0, Math.min(100, percent));
+  const safePercent = Math.max(0, Math.min(100, percent || 0));
 
   return (
     <div>
@@ -762,13 +775,26 @@ function ProgressLine({
         <span>{value}</span>
       </div>
       <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
-        <div className="h-full w-1/5 bg-white/70 rounded-full" />
+        <div
+          className="h-full bg-white/70 rounded-full transition-all"
+          style={{ width: `${safePercent}%` }}
+        />
       </div>
     </div>
   );
 }
 
-function Card({ title, icon, value, subtitle }) {
+function Card({
+  title,
+  icon,
+  value,
+  subtitle,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  value: string | number;
+  subtitle: string;
+}) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#ececff] hover:shadow-md transition">
       <div className="flex items-center gap-3 mb-2 text-gray-700">
@@ -880,10 +906,11 @@ function OrdersTable({
                 setTab("concluidos");
                 setPage(1);
               }}
-              className={`px-3 py-1 rounded-full transition ${isConcluidos
-                ? "bg-white shadow-sm text-[#16a34a]"
-                : "text-gray-500 hover:text-[#16a34a]"
-                }`}
+              className={`px-3 py-1 rounded-full transition ${
+                isConcluidos
+                  ? "bg-white shadow-sm text-[#16a34a]"
+                  : "text-gray-500 hover:text-[#16a34a]"
+              }`}
             >
               Concluídos
             </button>
@@ -892,10 +919,11 @@ function OrdersTable({
                 setTab("pagos");
                 setPage(1);
               }}
-              className={`px-3 py-1 rounded-full transition ${!isConcluidos
-                ? "bg-white shadow-sm text-[#2563eb]"
-                : "text-gray-500 hover:text-[#2563eb]"
-                }`}
+              className={`px-3 py-1 rounded-full transition ${
+                !isConcluidos
+                  ? "bg-white shadow-sm text-[#2563eb]"
+                  : "text-gray-500 hover:text-[#2563eb]"
+              }`}
             >
               Pagos
             </button>
@@ -991,7 +1019,8 @@ function OrdersTable({
                   order.orderItems
                     ?.map(
                       (item) =>
-                        `${item.quantity}x ${item.menuItem?.name ?? "Item sem nome"
+                        `${item.quantity}x ${
+                          item.menuItem?.name ?? "Item sem nome"
                         }`
                     )
                     .join(" • ") ?? "-";
@@ -1082,4 +1111,3 @@ function OrdersTable({
     </div>
   );
 }
-

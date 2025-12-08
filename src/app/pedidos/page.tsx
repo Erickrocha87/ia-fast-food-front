@@ -223,22 +223,6 @@ export default function CustomerOrderMenu() {
             />
           </div>
 
-          <div className="flex flex-wrap gap-3 mb-7">
-            {categoriasMenu.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCategoriaSelecionada(c)}
-                className={`px-4 py-2 rounded-full text-sm ${
-                  categoriaSelecionada === c
-                    ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow"
-                    : "bg-white border border-[#dcd8ff] text-[#6b46ff] hover:bg-[#f2efff]"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-
           {erro && (
             <p className="text-red-500 text-sm mb-4">
               Erro ao carregar cardápio: {erro}
