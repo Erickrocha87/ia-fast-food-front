@@ -41,8 +41,7 @@ export default function PedidoIA() {
     const add = (itemIA: any) => {
       const menuItem = itensMenu.find((m) => m.id === itemIA.id);
       if (!menuItem) return;
-
-      // pega tanto "quantity" (da IA) quanto "quantidade" (fallback)
+      
       const quantidade =
         typeof itemIA.quantity === "number"
           ? itemIA.quantity

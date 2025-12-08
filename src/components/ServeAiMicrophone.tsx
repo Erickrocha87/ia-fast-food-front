@@ -10,7 +10,6 @@ interface ServeAIRealtimeVoiceProps {
   tableNumber?: string;
 }
 
-// (Opcional) estimativa de tokens – segue igual
 function estimateTokensFromText(text: string): number {
   if (!text) return 0;
   const trimmed = text.trim();
@@ -30,13 +29,9 @@ export default function ServeAIRealtimeVoice({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menu, setMenu] = useState<any[]>([]);
 
-  // itens pendentes da parse_items_from_speech
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pendingItemsRef = useRef<any[]>([]);
 
-  // ============================================================
-  // 1) CARREGAR CARDÁPIO UMA VEZ
-  // ============================================================
   useEffect(() => {
     fetch("http://localhost:1337/menu")
       .then((r) => r.json())
@@ -47,11 +42,7 @@ export default function ServeAIRealtimeVoice({
       .catch((err) => console.error("Erro menu:", err));
   }, []);
 
-  // ============================================================
-  // 2) SYSTEM PROMPT (REFORÇADO Anti-alucinação)
-  // ============================================================
   function buildSystemPrompt() {
-    // opcional: reduzir só para campos relevantes
     const safeMenu = menu.map((m) => ({
       id: m.id,
       name: m.name,
@@ -158,9 +149,6 @@ ${JSON.stringify(safeMenu, null, 2)}
 `;
   }
 
-  // ============================================================
-  // 3) INICIAR VOZ / WEBRTC
-  // ============================================================
   async function startVoice() {
     if (status !== "Clique para falar") {
       stopVoice();
@@ -180,7 +168,6 @@ ${JSON.stringify(safeMenu, null, 2)}
       setStatus("Escutando");
       console.log("🟢 Canal WebRTC aberto!");
 
-      // injeta instruções reforçadas
       send({
         type: "session.update",
         session: {
@@ -246,9 +233,6 @@ ${JSON.stringify(safeMenu, null, 2)}
     eventBus.emit("ia:stop", null);
   }
 
-  // ============================================================
-  // 4) Envio
-  // ============================================================
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function send(obj: any) {
     if (dc.current?.readyState === "open") {
@@ -256,9 +240,6 @@ ${JSON.stringify(safeMenu, null, 2)}
     }
   }
 
-  // ============================================================
-  // 5) EVENTOS DA IA (FINAL)
-  // ============================================================
   async function handleEvent(msg: MessageEvent) {
     console.log("💬 MSG BRUTA DO DATACHANNEL:", msg.data);
 
@@ -277,12 +258,10 @@ ${JSON.stringify(safeMenu, null, 2)}
 
     console.log("📩 EVENTO IA (parseado):", ev);
 
-    // 5.1 Transcript final
     if (ev.type === "response.audio_transcript.done" && ev.transcript) {
       const transcript: string = ev.transcript;
       console.log("📝 Transcript final:", transcript);
 
-      // se temos itens pendentes, usa esse transcript como confirmação
       if (pendingItemsRef.current.length > 0) {
         const t = transcript.toLowerCase();
 
@@ -354,11 +333,8 @@ ${JSON.stringify(safeMenu, null, 2)}
             },
           });
         }
-
-        // segue fluxo normal de salvar transcript
       }
 
-      // salva resumo no backend (summary)
       fetch("http://localhost:1337/transcript", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -366,7 +342,6 @@ ${JSON.stringify(safeMenu, null, 2)}
       }).catch(() => {});
     }
 
-    // 5.2 Uso de tokens
     if (ev.type === "response.done" && ev.response?.usage) {
       const usage = ev.response.usage;
       const usageTokens =
@@ -398,7 +373,6 @@ ${JSON.stringify(safeMenu, null, 2)}
       }
     }
 
-    // 5.3 Tools
     if (ev.type === "response.function_call_arguments.done") {
       const toolName = ev.name;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -418,7 +392,6 @@ ${JSON.stringify(safeMenu, null, 2)}
         body: JSON.stringify({ name: toolName, args }),
       }).then((r) => r.json());
 
-      // parse_items_from_speech → guardar itens e pedir confirmação
       if (toolName === "parse_items_from_speech") {
         const items = toolResponse?.result?.items ?? [];
         console.log("🧩 ITENS PARSEADOS PELA TOOL:", items);
@@ -438,8 +411,8 @@ ${JSON.stringify(safeMenu, null, 2)}
         }
 
         const lista = items
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .map(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (m: any) => `${m.quantity ?? 1}x ${m.name ?? "item do cardápio"}`
           )
           .join(", ");
@@ -455,13 +428,11 @@ ${JSON.stringify(safeMenu, null, 2)}
         return;
       }
 
-      // finalize_order → limpar carrinho no front
       if (toolName === "finalize_order") {
         pendingItemsRef.current = [];
         eventBus.emit("pedido:clear", null);
       }
 
-      // add_to_order / remove_from_order → atualizar carrinho
       if (toolName === "add_to_order") {
         eventBus.emit("pedido:add", {
           id: args.menuItemId,

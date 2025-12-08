@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
 import { Icon } from "@iconify/react";
 
 export default function SucessoPage() {
@@ -42,16 +41,13 @@ export default function SucessoPage() {
   return (
     <div className="h-screen w-full overflow-hidden bg-gradient-to-br from-[#f5f6ff] via-[#eef2ff] to-[#e7ebff] flex items-center justify-center px-4 relative">
 
-      {/* Glow de fundo */}
       <div className="pointer-events-none absolute -top-40 -left-10 h-72 w-72 rounded-full bg-[#7b4fff]/25 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-10 h-80 w-80 rounded-full bg-[#3b82f6]/25 blur-3xl" />
 
       <div className="relative z-10 w-full max-w-md">
 
-        {/* Card */}
         <div className="bg-white/95 backdrop-blur-sm shadow-[0_18px_50px_rgba(80,60,220,0.20)] border border-[#e2e4ff] rounded-3xl p-7 text-center">
           
-          {/* Ícone */}
           <div className="flex justify-center mb-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#7b4fff] to-[#3b82f6] flex items-center justify-center shadow-lg shadow-[#7b4fff]/40 animate-[pulse_2s_ease-in-out_infinite]">
               <Icon
@@ -87,7 +83,6 @@ export default function SucessoPage() {
           </button>
         </div>
 
-        {/* Rodapé */}
         <p className="mt-4 text-[10px] text-center text-gray-400">
           Em caso de dúvidas sobre sua assinatura, fale com{" "}
           <a

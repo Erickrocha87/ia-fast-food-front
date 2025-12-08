@@ -13,6 +13,8 @@ import { Icon } from "@iconify/react";
 import { jwtDecode } from "jwt-decode";
 import { useUser } from "@/hooks/useUser";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import toast, { Toaster } from "react-hot-toast";
+
 
 interface MyToken {
   id: number;
@@ -38,13 +40,10 @@ export default function AdminDashboard() {
   const { isReady } = useAuthGuard();
   const { users, findAll } = useUser();
 
-  // CARDÁPIO
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  // STATS
   const [stats, setStats] = useState({
     liveOrders: 0,
     avgPrep: 0,
@@ -55,16 +54,13 @@ export default function AdminDashboard() {
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
 
-  // Assinatura
   const [subscription, setSubscription] = useState<SubscriptionData | null>(
     null
   );
 
-  // ================== AUTH / USERS ==================
   useEffect(() => {
     findAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [findAll]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -75,13 +71,7 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // ================== CARDÁPIO ==================
   const handleDeleteMenuItem = async (id: number) => {
-    const confirmDelete = window.confirm(
-      "Tem certeza que deseja remover este item do cardápio?"
-    );
-    if (!confirmDelete) return;
-
     try {
       const res = await fetch(`${API}/menu/${id}`, {
         method: "DELETE",
@@ -97,9 +87,10 @@ export default function AdminDashboard() {
       }
 
       setMenuItems((prev) => prev.filter((item) => item.id !== id));
+      toast.success("Item removido do cardápio.");
     } catch (error) {
       console.error(error);
-      alert("Erro ao deletar item do cardápio.");
+      toast.error("Erro ao deletar item do cardápio.");
     }
   };
 
@@ -139,7 +130,6 @@ export default function AdminDashboard() {
     fetchMenuItems();
   }, []);
 
-  // ================== STATS ==================
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -165,9 +155,6 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
-  // =====================================================
-  // 🔁 BUSCAR ASSINATURA REAL DO USUÁRIO (COM POLLING)
-  // =====================================================
   async function fetchSubscription() {
     try {
       const token = localStorage.getItem("token");
@@ -205,10 +192,8 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    // chama ao montar
     fetchSubscription();
 
-    // e depois a cada 10 segundos
     const interval = setInterval(() => {
       fetchSubscription();
     }, 10000);
@@ -216,10 +201,7 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // ================= PEDIDOS NO DASHBOARD =================
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ordersCompleted, setOrdersCompleted] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ordersPaid, setOrdersPaid] = useState<any[]>([]);
   const [ordersTab, setOrdersTab] = useState<"concluidos" | "pagos">(
     "concluidos"
@@ -266,7 +248,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // CONCLUÍDO -> PAGO
   const markOrderPaid = async (id: number) => {
     try {
       setOrdersLoading(true);
@@ -286,9 +267,10 @@ export default function AdminDashboard() {
       }
 
       await fetchOrders();
+      toast.success("Pedido marcado como pago.");
     } catch (err) {
       console.error("Erro ao marcar pedido como pago", err);
-      alert("Erro ao marcar pedido como pago.");
+      toast.error("Erro ao marcar pedido como pago.");
     } finally {
       setOrdersLoading(false);
     }
@@ -297,8 +279,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchOrders();
   }, []);
-
-  // =========================================================
 
   if (!isReady) {
     return null;
@@ -338,7 +318,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="w-full h-screen flex bg-[#0f172a]/5 text-gray-800 overflow-hidden">
-      {/* SIDEBAR */}
+       <Toaster position="top-right" />
       <aside className="hidden md:flex w-64 h-full flex-col bg-gradient-to-b from-[#7b4fff] via-[#a855f7] to-[#3b82f6] text-white p-6 gap-8">
         <div className="flex items-center gap-3">
           <div>
@@ -380,7 +360,6 @@ export default function AdminDashboard() {
           ))}
         </nav>
 
-        {/* CARD DO PLANO USANDO DADOS REAIS */}
         <div className="bg-black/10 rounded-2xl p-4 shadow-lg backdrop-blur-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70 mb-1">
             {planoAtivo ? "Plano atual" : "Sem plano"}
@@ -402,9 +381,8 @@ export default function AdminDashboard() {
               percent={tokensRemainingPercent}
             />
 
-            {/* Renovação sem progress bar */}
             <div>
-              <div className="flex justify-between text-[10px] mb-1">
+              <div className="flex justify-between text-[10px] mt-1">
                 <span>Renovação</span>
                 <span>
                   {planoAtivo && subscription?.cycleEnd
@@ -416,10 +394,6 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
-
-          <button className="w-full text-xs font-semibold bg-white text-[#7b4fff] rounded-full py-2 shadow hover:bg-[#f6f3ff] transition">
-            {planoAtivo ? "Gerenciar plano" : "ASSINAR AGORA"}
-          </button>
         </div>
 
         <div className="flex items-center justify-between mt-2">
@@ -437,7 +411,6 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1 h-full bg-[#f9f9ff] flex flex-col overflow-hidden">
         <header className="w-full px-6 lg:px-10 pt-6 pb-4 bg-white shadow-sm flex items-center justify-between">
           <div>
@@ -464,10 +437,8 @@ export default function AdminDashboard() {
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 lg:px-10 py-6 space-y-8">
-          {/* DASHBOARD GERAL */}
           {activeTab === "geral" && (
             <>
-              {/* MÉTRICAS */}
               <section className="mt-4">
                 <h2 className="text-base font-semibold mb-4">
                   Desempenho do restaurante
@@ -494,7 +465,6 @@ export default function AdminDashboard() {
                 </div>
               </section>
 
-              {/* TABELA DE PEDIDOS */}
               <section className="mt-8">
                 <OrdersTable
                   tab={ordersTab}
@@ -511,7 +481,6 @@ export default function AdminDashboard() {
           )}
 
           <section className="mt-2">
-            {/* USUÁRIOS */}
             {activeTab === "usuarios" && (
               <div className="grid gap-6">
                 <h2 className="text-lg font-semibold text-[#6d4aff]">
@@ -528,7 +497,6 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* CARDÁPIO */}
             {activeTab === "cardapio" && (
               <div>
                 <h2 className="text-lg font-semibold text-[#6d4aff] mb-6">
@@ -574,15 +542,15 @@ export default function AdminDashboard() {
                         if (!res.ok)
                           throw new Error(data.error || "Erro ao enviar CSV");
 
-                        alert(
-                          `✅ Cardápio importado com sucesso!\nItens importados: ${
+                        toast.success(
+                          `Cardápio importado com sucesso! Itens importados: ${
                             data.imported || 0
                           }`
                         );
                         fetchMenuItems();
                       } catch (err) {
                         console.error(err);
-                        alert("Falha na importação");
+                        toast.error("Falha na importação do CSV.");
                       }
                     }}
                   />
@@ -643,8 +611,6 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
-/* ================= COMPONENTES REUTILIZÁVEIS ================= */
 
 function ProgressLine({
   label,
@@ -717,8 +683,6 @@ function UserCard({ name, role }: { name: string; role: string }) {
   );
 }
 
-/* =============== TABELA DE PEDIDOS COM PAGINAÇÃO ================= */
-
 function OrdersTable({
   tab,
   setTab,
@@ -731,9 +695,7 @@ function OrdersTable({
 }: {
   tab: "concluidos" | "pagos";
   setTab: (tab: "concluidos" | "pagos") => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completed: any[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   paid: any[];
   loading: boolean;
   error: string | null;
@@ -785,7 +747,6 @@ function OrdersTable({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Toggle Concluídos / Pagos */}
           <div className="flex bg-[#f4f4ff] border border-[#e2e4ff] rounded-full p-1 text-xs">
             <button
               onClick={() => {
@@ -950,7 +911,6 @@ function OrdersTable({
         </table>
       </div>
 
-      {/* paginação */}
       <div className="flex items-center justify-between mt-4 text-[11px] text-gray-500">
         <span>
           Página {page} de {totalPages}

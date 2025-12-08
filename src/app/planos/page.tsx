@@ -4,16 +4,19 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Icon } from "@iconify/react";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function PlanosPage() {
   const router = useRouter();
   const [tipo, setTipo] = useState<"mensal" | "anual">("mensal");
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
 
-  // 🔥 1) Buscar assinatura ativa ao carregar página
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return router.push("/login");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
 
     fetch("http://localhost:1337/me/subscription", {
       headers: {
@@ -24,25 +27,31 @@ export default function PlanosPage() {
       .then((data) => {
         setHasSubscription(data.active === true);
       })
-      .catch(() => setHasSubscription(false));
-  }, []);
+      .catch((err) => {
+        console.error(err);
+        setHasSubscription(false);
+        toast.error("Erro ao verificar assinatura. Tente novamente.");
+      });
+  }, [router]);
 
-  // 🔥 2) Lógica de escolha de plano
   const escolherPlano = (plano: string) => {
     if (hasSubscription) {
-      return router.push("/dashboard");
+      toast("Você já possui um plano ativo. Redirecionando para o painel...", {
+        icon: "✅",
+      });
+      router.push("/dashboard");
+      return;
     }
 
     router.push(`/checkout?plano=${plano}&tipo=${tipo}`);
   };
 
-  // 🔥 3) Logout
   const handleLogout = () => {
     localStorage.removeItem("token");
+    toast.success("Você saiu da conta.");
     router.push("/");
   };
 
-  // Enquanto verifica assinatura → evita flicker visual
   if (hasSubscription === null) {
     return (
       <div className="w-full h-screen flex items-center justify-center text-gray-600">
@@ -103,15 +112,13 @@ export default function PlanosPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f5f6ff] via-[#f0f1ff] to-[#e7ebff] text-gray-900 flex flex-col relative overflow-hidden">
+      <Toaster position="top-right" />
 
-      {/* Efeitos visuais */}
       <div className="pointer-events-none absolute -top-32 -left-10 h-72 w-72 rounded-full bg-[#7b4fff]/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -right-10 h-80 w-80 rounded-full bg-[#3b82f6]/25 blur-3xl" />
 
-      {/* HEADER */}
       <header className="w-full relative z-10 border-b border-white/60/40">
         <div className="max-w-6xl mx-auto px-6 lg:px-2 xl:px-0 py-6 flex items-center justify-between">
-          {/* LOGO */}
           <div className="flex items-center gap-3">
             <Image
               src="/serveai-logo.png"
@@ -129,7 +136,6 @@ export default function PlanosPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* VOLTAR */}
             <button
               onClick={() => router.push("/dashboard")}
               className="hidden sm:inline-flex items-center gap-2 text-xs px-3 py-2 rounded-full border border-[#d7d3ff] bg-white/60 hover:bg-white transition"
@@ -138,23 +144,22 @@ export default function PlanosPage() {
               <span>Voltar ao painel</span>
             </button>
 
-            {/* LOGOUT */}
             <button
               onClick={handleLogout}
               className="inline-flex items-center gap-2 text-xs font-medium px-4 py-2 rounded-full bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white shadow-md hover:opacity-90 transition"
             >
-              <Icon icon="fluent:person-arrow-left-16-regular" className="w-4 h-4" />
+              <Icon
+                icon="fluent:person-arrow-left-16-regular"
+                className="w-4 h-4"
+              />
               <span>Sair</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* MAIN */}
       <main className="flex-1 w-full relative z-10">
         <div className="max-w-6xl mx-auto px-6 lg:px-2 xl:px-0 py-10">
-
-          {/* TÍTULO */}
           <section className="max-w-3xl mb-10">
             <div className="inline-flex items-center gap-2 bg-white/80 border border-[#e3e8ff] rounded-full px-3 py-1 text-[11px] text-[#6d4aff] font-medium shadow-sm mb-4">
               <span className="text-lg">💡</span>
@@ -172,13 +177,37 @@ export default function PlanosPage() {
             <p className="text-sm md:text-base text-gray-600 mb-6 max-w-2xl">
               Comece com o básico para uma experiência completa de atendimento.
             </p>
+
+            <div className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-[#e3e8ff] p-1 text-xs">
+              <button
+                onClick={() => setTipo("mensal")}
+                className={`px-3 py-1 rounded-full transition ${
+                  tipo === "mensal"
+                    ? "bg-[#7b4fff] text-white shadow"
+                    : "text-gray-600"
+                }`}
+              >
+                Mensal
+              </button>
+              <button
+                onClick={() => setTipo("anual")}
+                className={`px-3 py-1 rounded-full transition ${
+                  tipo === "anual"
+                    ? "bg-[#7b4fff] text-white shadow"
+                    : "text-gray-600"
+                }`}
+              >
+                Anual
+              </button>
+            </div>
           </section>
 
-          {/* CARDS */}
           <section className="grid grid-cols-1 md:grid-cols-3 gap-7 md:gap-6 items-stretch pt-10">
             {planos.map((plano) => {
-              const preco = tipo === "mensal" ? plano.precoMensal : plano.precoAnual;
-              const tokensFormatados = plano.tokensMensais.toLocaleString("pt-BR");
+              const preco =
+                tipo === "mensal" ? plano.precoMensal : plano.precoAnual;
+              const tokensFormatados =
+                plano.tokensMensais.toLocaleString("pt-BR");
 
               return (
                 <div
@@ -191,11 +220,13 @@ export default function PlanosPage() {
                     }
                   `}
                 >
-                  {/* Badge Popular */}
                   {plano.popular && (
                     <div className="absolute -top-3 left-6">
                       <span className="inline-flex items-center gap-1 bg-gradient-to-r from-[#f97316] to-[#fb923c] text-white text-[11px] px-3 py-1 rounded-full shadow-md">
-                        <Icon icon="fluent:star-12-filled" className="w-3.5 h-3.5" />
+                        <Icon
+                          icon="fluent:star-12-filled"
+                          className="w-3.5 h-3.5"
+                        />
                         Mais escolhido
                       </span>
                     </div>
@@ -233,7 +264,10 @@ export default function PlanosPage() {
                     <ul className="mt-1 space-y-2 text-sm text-gray-700 flex-1">
                       {plano.recursos.map((r, i) => (
                         <li key={i} className="flex gap-2 items-start">
-                          <Icon icon="fluent:checkmark-circle-16-filled" className="w-4 h-4 text-[#7b4fff]" />
+                          <Icon
+                            icon="fluent:checkmark-circle-16-filled"
+                            className="w-4 h-4 text-[#7b4fff]"
+                          />
                           <span>{r}</span>
                         </li>
                       ))}
@@ -252,7 +286,10 @@ export default function PlanosPage() {
                       `}
                     >
                       <span>Escolher plano</span>
-                      <Icon icon="fluent:arrow-right-16-filled" className="w-4 h-4" />
+                      <Icon
+                        icon="fluent:arrow-right-16-filled"
+                        className="w-4 h-4"
+                      />
                     </button>
                   </div>
                 </div>
@@ -260,7 +297,6 @@ export default function PlanosPage() {
             })}
           </section>
 
-          {/* CTA */}
           <section className="mt-10">
             <div className="rounded-3xl bg-gradient-to-r from-[#7b4fff] via-[#6366f1] to-[#3b82f6] text-white px-6 md:px-10 py-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
               <div>
@@ -268,19 +304,22 @@ export default function PlanosPage() {
                   Ainda em dúvida sobre qual plano escolher?
                 </h2>
                 <p className="text-xs md:text-sm text-white/80 max-w-md">
-                  Comece com qualquer plano, teste com seu time e faça upgrade depois.
+                  Comece com qualquer plano, teste com seu time e faça upgrade
+                  depois.
                 </p>
               </div>
               <button
                 onClick={() => escolherPlano("profissional")}
                 className="inline-flex items-center gap-2 bg-white text-[#4b38ff] px-5 py-2.5 rounded-full text-xs md:text-sm font-semibold shadow-md hover:bg-[#f5f3ff] transition"
               >
-                <Icon icon="fluent:flash-16-filled" className="w-4 h-4 text-[#f97316]" />
+                <Icon
+                  icon="fluent:flash-16-filled"
+                  className="w-4 h-4 text-[#f97316]"
+                />
                 Começar pelo plano Profissional
               </button>
             </div>
           </section>
-
         </div>
       </main>
     </div>

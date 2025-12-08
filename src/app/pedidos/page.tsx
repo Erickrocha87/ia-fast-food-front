@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
-import { useVoiceCommands } from "@/hooks/useVoiceCommands";
 import Link from "next/link";
+import toast, { Toaster } from "react-hot-toast";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const categoriasMenu = ["Todos", "Pizzas", "Lanches", "Bebidas", "Sobremesas"];
@@ -12,7 +12,6 @@ export default function CustomerOrderMenu() {
   const { isReady } = useAuthGuard();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [itensCarrinho, setItensCarrinho] = useState<any[]>([]);
-  const [ultimoComando, setUltimoComando] = useState("");
   const [busca, setBusca] = useState("");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [itensMenu, setItensMenu] = useState<any[]>([]);
@@ -35,6 +34,7 @@ export default function CustomerOrderMenu() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         setErro(err.message);
+        toast.error(err.message || "Erro ao carregar cardápio.");
       } finally {
         setLoading(false);
       }
@@ -82,17 +82,19 @@ export default function CustomerOrderMenu() {
   );
 
   const confirmarPedido = async () => {
-    if (itensCarrinho.length === 0) return;
+    if (itensCarrinho.length === 0) {
+      toast.error("Seu carrinho está vazio.");
+      return;
+    }
 
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        alert("Usuário não autenticado.");
+        toast.error("Usuário não autenticado.");
         return;
       }
 
-      // 🌸 1) Criar ou anexar pedido aberto
-      const tableNumber = "BALCAO"; // Pode trocar pra "MANUAL"
+      const tableNumber = "BALCAO";
       const resOrder = await fetch("http://localhost:1337/orders", {
         method: "POST",
         headers: {
@@ -112,7 +114,6 @@ export default function CustomerOrderMenu() {
 
       const orderId = dataOrder.order.id;
 
-      // 🌸 2) Adicionar cada item do carrinho
       for (const item of itensCarrinho) {
         const payload = {
           orderId,
@@ -137,23 +138,20 @@ export default function CustomerOrderMenu() {
         if (!resItem.ok || !dataItem.success) {
           throw new Error(
             dataItem.error ||
-            dataItem.message ||
-            "Erro ao adicionar item ao pedido."
+              dataItem.message ||
+              "Erro ao adicionar item ao pedido."
           );
         }
       }
 
-      // 🌸 3) Pedido concluído
-      alert(`✨ Pedido enviado! Total: R$ ${subtotal.toFixed(2)}`);
+      toast.success(`Pedido enviado! Total: R$ ${subtotal.toFixed(2)}`);
       setItensCarrinho([]);
-
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Erro ao finalizar pedido:", err);
-      alert(err.message || "Erro ao finalizar pedido.");
+      toast.error(err.message || "Erro ao finalizar pedido.");
     }
   };
-
-
 
   const itensFiltrados = itensMenu.filter((item) => {
     const matchCategoria =
@@ -171,6 +169,8 @@ export default function CustomerOrderMenu() {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-[#f5f6ff] via-[#f0f1ff] to-[#e7ebff] flex flex-col items-stretch py-10 px-4 md:px-8 relative">
+      <Toaster position="top-right" />
+
       <Link
         href="/escolher"
         className="fixed top-6 left-6 flex items-center gap-2 bg-white/85 backdrop-blur-md border border-[#e3ddff] shadow-md rounded-2xl px-4 py-2 hover:bg-white transition z-50"
@@ -182,9 +182,7 @@ export default function CustomerOrderMenu() {
         <span className="text-sm font-medium text-[#6b46ff]">Voltar</span>
       </Link>
 
-      {/* CONTAINER PRINCIPAL: LISTA + CARRINHO (FULL WIDTH) */}
       <div className="w-full mt-16 flex flex-col lg:flex-row gap-10 px-2 md:px-4 xl:px-10">
-        {/* COLUNA ESQUERDA - LISTA DE ITENS */}
         <div className="flex-1">
           <header className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -219,10 +217,11 @@ export default function CustomerOrderMenu() {
               <button
                 key={c}
                 onClick={() => setCategoriaSelecionada(c)}
-                className={`px-4 py-2 rounded-full text-sm ${categoriaSelecionada === c
-                  ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow"
-                  : "bg-white border border-[#dcd8ff] text-[#6b46ff] hover:bg-[#f2efff]"
-                  }`}
+                className={`px-4 py-2 rounded-full text-sm ${
+                  categoriaSelecionada === c
+                    ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow"
+                    : "bg-white border border-[#dcd8ff] text-[#6b46ff] hover:bg-[#f2efff]"
+                }`}
               >
                 {c}
               </button>
@@ -235,7 +234,6 @@ export default function CustomerOrderMenu() {
             </p>
           )}
 
-          {/* GRID USANDO MELHOR A LARGURA */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 w-full">
             {loading ? (
               <div className="col-span-full text-gray-500 text-sm">
@@ -288,7 +286,6 @@ export default function CustomerOrderMenu() {
           </div>
         </div>
 
-        {/* COLUNA DIREITA - CARRINHO COLADO NO LADO DIREITO */}
         <aside className="w-full lg:w-[380px] xl:w-[420px] shrink-0">
           <div
             className="
@@ -399,20 +396,19 @@ export default function CustomerOrderMenu() {
                 onClick={confirmarPedido}
                 disabled={itensCarrinho.length === 0}
                 className="
-    w-full py-4 rounded-xl
-    flex items-center justify-center gap-2
-    font-medium text-white
-    shadow-lg shadow-[#7b4fff]/20
-    transition
-    bg-gradient-to-r from-[#7b4fff] to-[#3b82f6]
-    disabled:bg-[#e0dbff] disabled:text-[#a6a0cc] disabled:shadow-none
-    hover:opacity-90
-  "
+                  w-full py-4 rounded-xl
+                  flex items-center justify-center gap-2
+                  font-medium text-white
+                  shadow-lg shadow-[#7b4fff]/20
+                  transition
+                  bg-gradient-to-r from-[#7b4fff] to-[#3b82f6]
+                  disabled:bg-[#e0dbff] disabled:text-[#a6a0cc] disabled:shadow-none
+                  hover:opacity-90
+                "
               >
                 <Icon icon="fluent:send-28-filled" className="w-5 h-5" />
                 Finalizar Pedido
               </button>
-
             </div>
           </div>
         </aside>

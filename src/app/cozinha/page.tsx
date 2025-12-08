@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function CozinhaPage() {
   const [activeTab, setActiveTab] = useState<"pendentes" | "concluidos">(
     "pendentes"
   );
-
-   const { isReady } = useAuthGuard();
+  const { isReady } = useAuthGuard();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [pendentes, setPendentes] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,24 +16,56 @@ export default function CozinhaPage() {
   const [loading, setLoading] = useState(false);
 
   async function carregarPendentes() {
-    const res = await fetch("http://localhost:1337/orders/kitchen");
-    const data = await res.json();
-    setPendentes(data);
+    try {
+      const res = await fetch("http://localhost:1337/orders/kitchen");
+      if (!res.ok) {
+        throw new Error("Erro ao buscar pedidos pendentes");
+      }
+      const data = await res.json();
+      setPendentes(data);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao carregar pedidos pendentes.");
+    }
   }
 
   async function carregarConcluidos() {
-    const res = await fetch("http://localhost:1337/orders/kitchen/completed");
-    const data = await res.json();
-    setConcluidos(data);
+    try {
+      const res = await fetch("http://localhost:1337/orders/kitchen/completed");
+      if (!res.ok) {
+        throw new Error("Erro ao buscar pedidos concluídos");
+      }
+      const data = await res.json();
+      setConcluidos(data);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao carregar pedidos concluídos.");
+    }
   }
 
   async function marcarComoPronto(id: number) {
-    setLoading(true);
-    await fetch(`http://localhost:1337/orders/kitchen/${id}/complete`, {
-      method: "PATCH",
-    });
-    await Promise.all([carregarPendentes(), carregarConcluidos()]);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const res = await fetch(
+        `http://localhost:1337/orders/kitchen/${id}/complete`,
+        {
+          method: "PATCH",
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Erro ao marcar pedido como pronto");
+      }
+
+      await Promise.all([carregarPendentes(), carregarConcluidos()]);
+      toast.success(`Pedido #${id} marcado como pronto.`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao marcar pedido como pronto.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -41,15 +73,16 @@ export default function CozinhaPage() {
     carregarConcluidos();
   }, []);
 
-  const pedidosExibidos =
-    activeTab === "pendentes" ? pendentes : concluidos;
+  const pedidosExibidos = activeTab === "pendentes" ? pendentes : concluidos;
 
-    if (!isReady) {
-      return null;
-    }
+  if (!isReady) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f7f8ff] via-[#f1f3ff] to-[#e4e7ff] px-6 lg:px-10 xl:px-20 py-8">
+      <Toaster position="top-right" />
+
       <header className="mb-8">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -60,7 +93,8 @@ export default function CozinhaPage() {
               Pedidos em preparo
             </h1>
             <p className="text-gray-500 text-sm mt-1">
-              Visualize rapidamente os pedidos e marque como prontos assim que saírem.
+              Visualize rapidamente os pedidos e marque como prontos assim que
+              saírem.
             </p>
           </div>
 
@@ -171,14 +205,16 @@ function ListaPedidos({
           <tbody>
             {pedidos.map((order) => {
               const total = order.orderItems?.reduce(
-                (sum, item) => sum + item.quantity * item.price,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (sum: number, item: any) => sum + item.quantity * item.price,
                 0
               );
 
               const itensLabel =
                 order.orderItems
                   ?.map(
-                    (item) =>
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (item: any) =>
                       `${item.quantity}x ${
                         item.menuItem?.name ?? "Item sem nome"
                       }`
@@ -203,7 +239,9 @@ function ListaPedidos({
                   </td>
 
                   <td className="px-5 py-3 max-w-[360px]">
-                    <p className="text-xs text-gray-700 truncate">{itensLabel}</p>
+                    <p className="text-xs text-gray-700 truncate">
+                      {itensLabel}
+                    </p>
                   </td>
 
                   <td className="px-5 py-3 text-right whitespace-nowrap">

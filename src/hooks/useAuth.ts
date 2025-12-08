@@ -63,7 +63,6 @@ export function useRegister() {
 
 export function useLogin() {
   async function login({ email, password }: LoginPayload) {
-    // 1) LOGIN
     const res = await fetch("http://localhost:1337/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -84,7 +83,6 @@ export function useLogin() {
 
     localStorage.setItem("token", token);
 
-    // 2) CHECAR ASSINATURA
     try {
       const subRes = await fetch("http://localhost:1337/me/subscription", {
         headers: { Authorization: `Bearer ${token}` },
@@ -93,7 +91,6 @@ export function useLogin() {
       const subData = await subRes.json().catch(() => null);
 
       if (!subRes.ok) {
-        // se der erro aqui, só consideramos como "sem assinatura"
         return { hasSubscription: false };
       }
 
