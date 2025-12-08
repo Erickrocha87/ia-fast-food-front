@@ -10,7 +10,7 @@ interface RegisterParams {
   restaurantType: string;
 }
 
-interface LoginParams {
+interface LoginPayload {
   email: string;
   password: string;
 }
@@ -48,7 +48,7 @@ export function useRegister() {
       if (!res.ok) {
         throw new Error(data.message || "Erro ao cadastrar usuário.");
       }
-    
+
       router.push("/login");
     } catch (err) {
       console.error(err);
@@ -63,40 +63,38 @@ export function useRegister() {
 
 export function useLogin() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const login = async ({ email, password }: LoginParams) => {
-    try {
-      setLoading(true);
-      setError(null);
+  async function login({ email, password }: LoginPayload) {
+    const res = await fetch("http://localhost:1337/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/login`;
+    const data = await res.json();
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Erro ao fazer login.");
-      }
-      console.log("CARAIO", data.token);
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-      }
-
-      router.push("/planos");
-    } catch (err) {
-      console.error(err);
-      setError("Erro ao fazer login.");
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      throw new Error(data.error || "Credenciais inválidas");
     }
-  };
 
-  return { login, loading, error };
+    // salva token
+    localStorage.setItem("token", data.token);
+
+    // checa assinatura
+    const subRes = await fetch("http://localhost:1337/me/subscription", {
+      headers: {
+        Authorization: `Bearer ${data.token}`,
+      },
+    });
+
+    const subData = await subRes.json();
+
+    const hasSubscription = subData.active === true;
+
+    return { hasSubscription };
+  }
+
+  return { login };
 }

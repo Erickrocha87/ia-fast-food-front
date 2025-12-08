@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useVoiceCommands(transcript: string, actions: any) {
   useEffect(() => {
     if (!transcript) return;

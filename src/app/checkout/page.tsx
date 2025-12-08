@@ -211,12 +211,6 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-gray-500">Tablets incluídos</span>
-                  <span className="font-semibold text-[#4b38ff]">
-                    {typeof plano.tablets === "number"
-                      ? `${plano.tablets} dispositivos`
-                      : plano.tablets}
-                  </span>
                   <p className="text-[11px] text-gray-500">
                     Use em tablets, totens ou celulares dos garçons.
                   </p>
@@ -230,8 +224,11 @@ export default function CheckoutPage() {
                 <p className="text-[11px] text-gray-500 leading-relaxed">
                   A cobrança é recorrente (
                   {tipo === "mensal" ? "todo mês" : "anualmente"}). Você pode
-                  cancelar ou mudar de plano a qualquer momento pelo painel, sem
+                  mudar de plano a qualquer momento pelo painel, sem
                   multa nem burocracia.
+                </p>
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  Para cancelamento basta entrar em contato com o suporte: <a className="text-[#4b38ff]" href="mailto:suporte@serveai.com">suporte@serveai.com</a>
                 </p>
               </div>
 
@@ -249,9 +246,6 @@ export default function CheckoutPage() {
                   </p>
                 </div>
 
-                <span className="hidden md:inline-flex items-center text-[11px] text-gray-500">
-                  Stripe
-                </span>
               </div>
 
               <div className="bg-[#f8f7ff] border border-[#e2e4ff] rounded-2xl p-4 text-xs text-gray-600 flex items-start gap-3">
