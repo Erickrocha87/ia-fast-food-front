@@ -544,7 +544,7 @@ const API = "http://localhost:1337";
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <Card
-                    title="Ordens Ativas"
+                    title="Pedidos Ativos"
                     icon={<Clock className="text-[#fb923c]" />}
                     value={`${stats.liveOrders} ativas`}
                     subtitle={`Tempo médio de preparo: ${stats.avgPrep} min`}

@@ -17,8 +17,6 @@ export default function CustomerOrderMenu() {
   const [itensMenu, setItensMenu] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-
-  // ================== MESA ATUAL ==================
   const [mesaAtual, setMesaAtual] = useState<string | null>(null);
 
   useEffect(() => {
@@ -86,11 +84,11 @@ export default function CustomerOrderMenu() {
     );
 
   const subtotal = itensCarrinho.reduce(
-    (total, item) => total + (item.price ?? item.preco ?? 0) * item.quantidade,
+    (total, item) =>
+      total + (item.price ?? item.preco ?? 0) * item.quantidade,
     0
   );
 
-  // ================== FINALIZAR PEDIDO ==================
   const confirmarPedido = async () => {
     if (itensCarrinho.length === 0) {
       toast.error("Seu carrinho está vazio.");
@@ -106,8 +104,6 @@ export default function CustomerOrderMenu() {
 
       const tableNumber = mesaAtual || "SEM_MESA";
 
-      // 🌸 1) Criar ou anexar pedido aberto
-      const tableNumber = "BALCAO"; // Pode trocar pra "MANUAL"
       const resOrder = await fetch("http://localhost:1337/orders", {
         method: "POST",
         headers: {
@@ -157,10 +153,9 @@ export default function CustomerOrderMenu() {
         }
       }
 
-      // 🌸 3) Pedido concluído
-      alert(`✨ Pedido enviado! Total: R$ ${subtotal.toFixed(2)}`);
+      toast.success(`Pedido enviado! Total: R$ ${subtotal.toFixed(2)}`);
       setItensCarrinho([]);
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Erro ao finalizar pedido:", err);
       toast.error(err.message || "Erro ao finalizar pedido.");

@@ -16,7 +16,6 @@ export default function PedidoIA() {
   const [loading, setLoading] = useState(true);
   const { isReady } = useAuthGuard();
 
-  // ================== MESA ATUAL ==================
   const [mesaAtual, setMesaAtual] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,7 +24,6 @@ export default function PedidoIA() {
     setMesaAtual(mesa);
   }, []);
 
-  // ================== CARDÁPIO ==================
   useEffect(() => {
     const fetchMenu = async () => {
       try {
@@ -46,7 +44,6 @@ export default function PedidoIA() {
     fetchMenu();
   }, []);
 
-  // ================== EVENTOS DA IA ==================
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const add = (itemIA: any) => {
@@ -93,7 +90,6 @@ export default function PedidoIA() {
     };
   }, [itensMenu]);
 
-  // ================== CARRINHO ==================
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function adicionarCarrinho(item: any) {
     setItensCarrinho((prev) => {
@@ -134,7 +130,6 @@ export default function PedidoIA() {
     (i.name || "").toLowerCase().includes(busca.toLowerCase())
   );
 
-  // ================== FINALIZAR PEDIDO (ENVIAR PRO BACK) ==================
   const finalizarPedidoIA = async () => {
     if (itensCarrinho.length === 0) return;
 
@@ -147,7 +142,6 @@ export default function PedidoIA() {
 
       const tableNumber = mesaAtual || "SEM_MESA";
 
-      // 1) Cria (ou reutiliza) pedido para a mesa
       const resOrder = await fetch("http://localhost:1337/orders", {
         method: "POST",
         headers: {
@@ -169,7 +163,6 @@ export default function PedidoIA() {
 
       const orderId = dataOrder.order.id;
 
-      // 2) Adiciona cada item do carrinho
       for (const item of itensCarrinho) {
         const payload = {
           orderId,
@@ -206,13 +199,13 @@ export default function PedidoIA() {
         )}`
       );
       setItensCarrinho([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Erro ao finalizar pedido IA:", err);
       alert(err.message || "Erro ao finalizar pedido IA.");
     }
   };
 
-  // ================== RENDER ==================
   if (!isReady) {
     return null;
   }
