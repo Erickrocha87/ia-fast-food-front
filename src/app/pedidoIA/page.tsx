@@ -16,6 +16,16 @@ export default function PedidoIA() {
   const [loading, setLoading] = useState(true);
   const { isReady } = useAuthGuard();
 
+  // ================== MESA ATUAL ==================
+  const [mesaAtual, setMesaAtual] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mesa = localStorage.getItem("serveai:mesaAtual");
+    setMesaAtual(mesa);
+  }, []);
+
+  // ================== CARDÁPIO ==================
   useEffect(() => {
     const fetchMenu = async () => {
       try {
@@ -36,6 +46,7 @@ export default function PedidoIA() {
     fetchMenu();
   }, []);
 
+  // ================== EVENTOS DA IA ==================
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const add = (itemIA: any) => {
@@ -83,6 +94,7 @@ export default function PedidoIA() {
     };
   }, [itensMenu]);
 
+  // ================== CARRINHO ==================
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function adicionarCarrinho(item: any) {
     setItensCarrinho((prev) => {
@@ -123,6 +135,85 @@ export default function PedidoIA() {
     (i.name || "").toLowerCase().includes(busca.toLowerCase())
   );
 
+  // ================== FINALIZAR PEDIDO (ENVIAR PRO BACK) ==================
+  const finalizarPedidoIA = async () => {
+    if (itensCarrinho.length === 0) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Usuário não autenticado.");
+        return;
+      }
+
+      const tableNumber = mesaAtual || "SEM_MESA";
+
+      // 1) Cria (ou reutiliza) pedido para a mesa
+      const resOrder = await fetch("http://localhost:1337/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tableNumber }),
+      });
+
+      const dataOrder = await resOrder.json();
+
+      if (!resOrder.ok || !dataOrder.success || !dataOrder.order) {
+        throw new Error(
+          dataOrder.error ||
+            dataOrder.message ||
+            "Erro ao criar pedido via IA."
+        );
+      }
+
+      const orderId = dataOrder.order.id;
+
+      // 2) Adiciona cada item do carrinho
+      for (const item of itensCarrinho) {
+        const payload = {
+          orderId,
+          menuItemId: item.id,
+          quantity: item.quantidade,
+        };
+
+        const resItem = await fetch(
+          "http://localhost:1337/orders/item/add",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        const dataItem = await resItem.json();
+
+        if (!resItem.ok || !dataItem.success) {
+          throw new Error(
+            dataItem.error ||
+              dataItem.message ||
+              "Erro ao adicionar item ao pedido (IA)."
+          );
+        }
+      }
+
+      alert(
+        `✨ Pedido da mesa ${tableNumber} enviado! Total: R$ ${total.toFixed(
+          2
+        )}`
+      );
+      setItensCarrinho([]);
+    } catch (err: any) {
+      console.error("Erro ao finalizar pedido IA:", err);
+      alert(err.message || "Erro ao finalizar pedido IA.");
+    }
+  };
+
+  // ================== RENDER ==================
   if (!isReady) {
     return null;
   }
@@ -154,10 +245,19 @@ export default function PedidoIA() {
       <div className="w-full max-w-[1500px] grid grid-cols-1 lg:grid-cols-[1fr_1fr_420px] gap-10">
         <div className="col-span-1 lg:col-span-2 space-y-10">
           <div className="bg-white border border-[#e3e8ff] rounded-3xl shadow-md p-10">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-              <Icon icon="fluent:bot-24-filled" className="text-[#7b4fff]" />
-              Assistente Inteligente
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Icon
+                  icon="fluent:bot-24-filled"
+                  className="text-[#7b4fff]"
+                />
+                Assistente Inteligente
+              </h2>
+
+              <span className="text-xs px-3 py-1 rounded-full bg-[#eef2ff] text-[#4c51bf] font-medium">
+                Mesa {mesaAtual ?? "não selecionada"}
+              </span>
+            </div>
 
             <div className="flex flex-col items-center text-center">
               <div className="w-56 h-40 rounded-3xl bg-gradient-to-br from-[#9f7aea] to-[#3b82f6] flex items-center justify-center shadow-lg">
@@ -174,7 +274,7 @@ export default function PedidoIA() {
                 Toque no botão abaixo para falar
               </p>
 
-              <ServeAIMicrophone />
+              <ServeAIMicrophone tableNumber={mesaAtual ?? "SEM_MESA"} />
             </div>
           </div>
 
@@ -214,7 +314,12 @@ export default function PedidoIA() {
         </div>
 
         <div className="bg-white border border-[#e3e8ff] rounded-3xl shadow-md p-8 h-fit sticky top-10">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Carrinho</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Carrinho</h2>
+            <span className="text-xs bg-[#f3f0ff] text-[#4b38ff] px-3 py-1 rounded-full">
+              Mesa {mesaAtual ?? "?"}
+            </span>
+          </div>
 
           {itensCarrinho.length === 0 ? (
             <p className="text-gray-500 text-sm">Nenhum item ainda.</p>
@@ -272,7 +377,11 @@ export default function PedidoIA() {
             <span className="text-[#7b4fff]">R$ {total.toFixed(2)}</span>
           </div>
 
-          <button className="w-full mt-4 bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white py-3 rounded-xl shadow-md hover:opacity-90 transition">
+          <button
+            onClick={finalizarPedidoIA}
+            disabled={itensCarrinho.length === 0}
+            className="w-full mt-4 bg-gradient-to-r from-[#7b4fff] to-[#3b82f6] text-white py-3 rounded-xl shadow-md hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
             Finalizar Pedido
           </button>
         </div>

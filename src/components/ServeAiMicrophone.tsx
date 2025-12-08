@@ -533,7 +533,7 @@ ${JSON.stringify(safeMenu, null, 2)}
       </button>
 
       <div className="text-sm text-gray-600">
-        Status: <b>{status}</b> • Mesa {tableNumber}
+        Status: <b>{status}</b> 
       </div>
     </div>
   );

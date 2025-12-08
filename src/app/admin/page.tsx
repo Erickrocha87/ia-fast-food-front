@@ -311,18 +311,16 @@ export default function AdminDashboard() {
       setOrdersLoading(true);
       const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API_BASE}/orders/${id}/status`, {
-        method: "PUT",
+      const res = await fetch(`${API_BASE}/orders/cashier/${id}/paid`, {
+        method: "PATCH",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: "READY" }), // READY = pago
       });
 
       const data = await res.json();
 
-      if (!res.ok || data.success === false) {
+      if (!res.ok || data.ok === false) {
         throw new Error(
           data.error || data.message || "Erro ao marcar pedido como pago"
         );
@@ -336,6 +334,8 @@ export default function AdminDashboard() {
       setOrdersLoading(false);
     }
   };
+
+
 
   useEffect(() => {
     fetchOrders();
@@ -379,11 +379,10 @@ export default function AdminDashboard() {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${
-                activeTab === item.id
-                  ? "bg-white/15 shadow-sm"
-                  : "bg-transparent hover:bg-white/10"
-              }`}
+              className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${activeTab === item.id
+                ? "bg-white/15 shadow-sm"
+                : "bg-transparent hover:bg-white/10"
+                }`}
             >
               {item.icon}
               <span>{item.label}</span>
@@ -592,8 +591,7 @@ export default function AdminDashboard() {
                           throw new Error(data.error || "Erro ao enviar CSV");
 
                         alert(
-                          `✅ Cardápio importado com sucesso!\nItens importados: ${
-                            data.imported || 0
+                          `✅ Cardápio importado com sucesso!\nItens importados: ${data.imported || 0
                           }`
                         );
                         fetchMenuItems();
@@ -793,11 +791,10 @@ function OrdersTable({
                 setTab("concluidos");
                 setPage(1);
               }}
-              className={`px-3 py-1 rounded-full transition ${
-                isConcluidos
-                  ? "bg-white shadow-sm text-[#16a34a]"
-                  : "text-gray-500 hover:text-[#16a34a]"
-              }`}
+              className={`px-3 py-1 rounded-full transition ${isConcluidos
+                ? "bg-white shadow-sm text-[#16a34a]"
+                : "text-gray-500 hover:text-[#16a34a]"
+                }`}
             >
               Concluídos
             </button>
@@ -806,11 +803,10 @@ function OrdersTable({
                 setTab("pagos");
                 setPage(1);
               }}
-              className={`px-3 py-1 rounded-full transition ${
-                !isConcluidos
-                  ? "bg-white shadow-sm text-[#2563eb]"
-                  : "text-gray-500 hover:text-[#2563eb]"
-              }`}
+              className={`px-3 py-1 rounded-full transition ${!isConcluidos
+                ? "bg-white shadow-sm text-[#2563eb]"
+                : "text-gray-500 hover:text-[#2563eb]"
+                }`}
             >
               Pagos
             </button>
@@ -906,8 +902,7 @@ function OrdersTable({
                   order.orderItems
                     ?.map(
                       (item) =>
-                        `${item.quantity}x ${
-                          item.menuItem?.name ?? "Item sem nome"
+                        `${item.quantity}x ${item.menuItem?.name ?? "Item sem nome"
                         }`
                     )
                     .join(" • ") ?? "-";

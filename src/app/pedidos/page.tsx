@@ -19,6 +19,15 @@ export default function CustomerOrderMenu() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
+  // ================== MESA ATUAL ==================
+  const [mesaAtual, setMesaAtual] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mesa = localStorage.getItem("serveai:mesaAtual");
+    setMesaAtual(mesa);
+  }, []);
+
   useEffect(() => {
     const fetchMenu = async () => {
       try {
@@ -81,6 +90,7 @@ export default function CustomerOrderMenu() {
     0
   );
 
+  // ================== FINALIZAR PEDIDO ==================
   const confirmarPedido = async () => {
     if (itensCarrinho.length === 0) return;
 
@@ -91,8 +101,9 @@ export default function CustomerOrderMenu() {
         return;
       }
 
+      const tableNumber = mesaAtual || "SEM_MESA";
+
       // 🌸 1) Criar ou anexar pedido aberto
-      const tableNumber = "BALCAO"; // Pode trocar pra "MANUAL"
       const resOrder = await fetch("http://localhost:1337/orders", {
         method: "POST",
         headers: {
@@ -137,23 +148,24 @@ export default function CustomerOrderMenu() {
         if (!resItem.ok || !dataItem.success) {
           throw new Error(
             dataItem.error ||
-            dataItem.message ||
-            "Erro ao adicionar item ao pedido."
+              dataItem.message ||
+              "Erro ao adicionar item ao pedido."
           );
         }
       }
 
       // 🌸 3) Pedido concluído
-      alert(`✨ Pedido enviado! Total: R$ ${subtotal.toFixed(2)}`);
+      alert(
+        `✨ Pedido da mesa ${tableNumber} enviado! Total: R$ ${subtotal.toFixed(
+          2
+        )}`
+      );
       setItensCarrinho([]);
-
     } catch (err: any) {
       console.error("Erro ao finalizar pedido:", err);
       alert(err.message || "Erro ao finalizar pedido.");
     }
   };
-
-
 
   const itensFiltrados = itensMenu.filter((item) => {
     const matchCategoria =
@@ -195,7 +207,9 @@ export default function CustomerOrderMenu() {
                 <h1 className="text-sm font-medium text-[#6b46ff]">
                   Fazer Pedido
                 </h1>
-                <p className="text-xs text-gray-500">Escolha seus itens</p>
+                <p className="text-xs text-gray-500">
+                  Mesa {mesaAtual ?? "não selecionada"}
+                </p>
               </div>
             </div>
           </header>
@@ -219,10 +233,11 @@ export default function CustomerOrderMenu() {
               <button
                 key={c}
                 onClick={() => setCategoriaSelecionada(c)}
-                className={`px-4 py-2 rounded-full text-sm ${categoriaSelecionada === c
-                  ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow"
-                  : "bg-white border border-[#dcd8ff] text-[#6b46ff] hover:bg-[#f2efff]"
-                  }`}
+                className={`px-4 py-2 rounded-full text-sm ${
+                  categoriaSelecionada === c
+                    ? "bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white shadow"
+                    : "bg-white border border-[#dcd8ff] text-[#6b46ff] hover:bg-[#f2efff]"
+                }`}
               >
                 {c}
               </button>
@@ -260,7 +275,9 @@ export default function CustomerOrderMenu() {
                       {item.name || item.nome}
                     </h3>
                     <p className="text-sm text-gray-500">
-                      {item.description || item.descricao || "Sem descrição"}
+                      {item.description ||
+                        item.descricao ||
+                        "Sem descrição"}
                     </p>
                     <p className="font-semibold text-[#4b38ff] mt-4 text-lg">
                       R$ {(item.price ?? item.preco ?? 0).toFixed(2)}
@@ -302,9 +319,14 @@ export default function CustomerOrderMenu() {
             "
           >
             <div className="p-6 flex items-center justify-between border-b border-[#eeeaff]">
-              <h2 className="text-2xl font-semibold text-[#4b38ff]">
-                Seu Carrinho
-              </h2>
+              <div>
+                <h2 className="text-2xl font-semibold text-[#4b38ff]">
+                  Seu Carrinho
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Mesa {mesaAtual ?? "não selecionada"}
+                </p>
+              </div>
               {itensCarrinho.length > 0 && (
                 <span className="text-xs bg-[#edeaff] text-[#4c33ff] px-3 py-1 rounded-full">
                   {itensCarrinho.length} item
@@ -412,7 +434,6 @@ export default function CustomerOrderMenu() {
                 <Icon icon="fluent:send-28-filled" className="w-5 h-5" />
                 Finalizar Pedido
               </button>
-
             </div>
           </div>
         </aside>
